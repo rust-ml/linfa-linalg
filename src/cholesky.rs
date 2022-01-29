@@ -1,6 +1,6 @@
-use crate::{LinalgError, Result};
+use crate::{triangular::IntoTriangular, LinalgError, Result};
+
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
-use ndarray_linalg::{IntoTriangular, UPLO};
 use num_traits::{real::Real, NumAssignOps, NumRef};
 
 pub trait CholeskyInplace {
@@ -40,7 +40,7 @@ where
             *self.get_mut((j, j)).unwrap() = d.sqrt();
         }
 
-        self.into_triangular(UPLO::Lower);
+        self.into_lower_triangular()?;
         Ok(self)
     }
 }
