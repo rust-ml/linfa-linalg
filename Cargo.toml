@@ -2,10 +2,12 @@
 name = "ndarray-linalg-rs"
 version = "0.1.0"
 edition = "2018"
+license = "MIT/Apache-2.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["ndarray", "matrix"]
+categories = ["algorithms", "mathematics", "science"]
 
 [dependencies]
-linfa-linear = { git = "https://github.com/rust-ml/linfa" }
-linfa = { git = "https://github.com/rust-ml/linfa" }
-linfa-datasets = { git = "https://github.com/rust-ml/linfa",  features = ["diabetes"] }
+ndarray = { version = "0.15", default-features = false, features = ["approx"] }
+num-traits = { version = "0.2.0" }
+thiserror = { version = "1" }
