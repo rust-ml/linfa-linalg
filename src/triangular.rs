@@ -50,3 +50,50 @@ where
         Ok(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use ndarray::{array, Array2};
+
+    use crate::LinalgError;
+
+    use super::*;
+
+    #[test]
+    fn corner_cases() {
+        let empty = Array2::<f64>::zeros((0, 0));
+        empty.into_lower_triangular().unwrap();
+
+        let one = array![[1]];
+        assert_eq!(one.clone().into_upper_triangular().unwrap(), one);
+        assert_eq!(one.clone().into_lower_triangular().unwrap(), one);
+    }
+
+    #[test]
+    fn non_square() {
+        let row = array![[1, 2, 3], [3, 4, 5]];
+        assert!(matches!(
+            row.into_lower_triangular(),
+            Err(LinalgError::NotSquare { rows: 2, cols: 3 })
+        ));
+
+        let col = array![[1, 2], [3, 5], [6, 8]];
+        assert!(matches!(
+            col.into_upper_triangular(),
+            Err(LinalgError::NotSquare { rows: 3, cols: 2 })
+        ));
+    }
+
+    #[test]
+    fn square() {
+        let square = array![[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+        assert_eq!(
+            square.clone().into_upper_triangular().unwrap(),
+            array![[1, 2, 3], [0, 5, 6], [0, 0, 9]]
+        );
+        assert_eq!(
+            square.into_lower_triangular().unwrap(),
+            array![[1, 0, 0], [4, 5, 0], [7, 8, 9]]
+        );
+    }
+}
