@@ -1,5 +1,6 @@
 use crate::{LinalgError, Result};
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
+use ndarray_linalg::{IntoTriangular, UPLO};
 use num_traits::{real::Real, NumAssignOps, NumRef};
 
 pub trait CholeskyInplace {
@@ -39,6 +40,7 @@ where
             *self.get_mut((j, j)).unwrap() = d.sqrt();
         }
 
+        self.into_triangular(UPLO::Lower);
         Ok(self)
     }
 }
@@ -78,5 +80,23 @@ where
     fn cholesky(&self) -> Result<Self::Output> {
         let arr = self.to_owned();
         arr.cholesky_into()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use approx::assert_abs_diff_eq;
+    use ndarray::array;
+
+    use super::*;
+
+    #[test]
+    fn decompose() {
+        let arr = array![[25., 15., -5.], [15., 18., 0.], [-5., 0., 11.]];
+        let lower = array![[5.0, 0.0, 0.0], [3.0, 3.0, 0.0], [-1., 1., 3.]];
+
+        let chol = arr.cholesky().unwrap();
+        assert_abs_diff_eq!(chol, lower, epsilon = 1e-4);
+        assert_abs_diff_eq!(chol.dot(&chol.t()), arr, epsilon = 1e-4);
     }
 }
