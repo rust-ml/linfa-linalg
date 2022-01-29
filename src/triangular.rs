@@ -62,7 +62,7 @@ mod tests {
     #[test]
     fn corner_cases() {
         let empty = Array2::<f64>::zeros((0, 0));
-        empty.into_lower_triangular().unwrap();
+        assert_eq!(empty.clone().into_lower_triangular().unwrap(), empty);
 
         let one = array![[1]];
         assert_eq!(one.clone().into_upper_triangular().unwrap(), one);

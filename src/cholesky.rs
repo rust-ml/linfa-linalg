@@ -99,4 +99,26 @@ mod test {
         assert_abs_diff_eq!(chol, lower, epsilon = 1e-4);
         assert_abs_diff_eq!(chol.dot(&chol.t()), arr, epsilon = 1e-4);
     }
+
+    #[test]
+    fn bad_matrix() {
+        let row = array![[1., 2., 3.], [3., 4., 5.]];
+        assert!(matches!(
+            row.cholesky(),
+            Err(LinalgError::NotSquare { rows: 2, cols: 3 })
+        ));
+
+        let non_pd = array![[1., 2.], [2., 1.]];
+        let res = non_pd.cholesky_into();
+        assert!(matches!(res, Err(LinalgError::NotPositiveDefinite)));
+    }
+
+    #[test]
+    fn corner_cases() {
+        let empty = Array2::<f64>::zeros((0, 0));
+        assert_eq!(empty.cholesky().unwrap(), empty);
+
+        let one = array![[1.]];
+        assert_eq!(one.cholesky().unwrap(), one);
+    }
 }
