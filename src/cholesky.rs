@@ -1,5 +1,5 @@
 use crate::{LinalgError, Result};
-use ndarray::{ArrayBase, DataMut, Ix2};
+use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
 use num_traits::{real::Real, NumAssignOps, NumRef};
 
 pub trait CholeskyInplace {
@@ -40,5 +40,43 @@ where
         }
 
         Ok(self)
+    }
+}
+
+pub trait CholeskyInto {
+    type Output;
+
+    fn cholesky_into(self) -> Result<Self::Output>;
+}
+
+impl<A, S> CholeskyInto for ArrayBase<S, Ix2>
+where
+    A: Real + NumRef + NumAssignOps,
+    S: DataMut<Elem = A>,
+{
+    type Output = Self;
+
+    fn cholesky_into(mut self) -> Result<Self::Output> {
+        self.cholesky_inplace()?;
+        Ok(self)
+    }
+}
+
+pub trait Cholesky {
+    type Output;
+
+    fn cholesky(&self) -> Result<Self::Output>;
+}
+
+impl<A, S> Cholesky for ArrayBase<S, Ix2>
+where
+    A: Real + NumRef + NumAssignOps,
+    S: Data<Elem = A>,
+{
+    type Output = Array2<A>;
+
+    fn cholesky(&self) -> Result<Self::Output> {
+        let arr = self.to_owned();
+        arr.cholesky_into()
     }
 }
