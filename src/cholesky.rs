@@ -8,6 +8,21 @@ use num_traits::{real::Real, NumAssignOps, NumRef};
 /// Cholesky decomposition of a positive definite matrix
 pub trait CholeskyInplace {
     /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix in place.
+    /// The upper triangle portion is not zeroed out.
+    fn cholesky_inplace_dirty(&mut self) -> Result<&mut Self>;
+
+    /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix, passing by
+    /// value.
+    /// The upper triangle portion is not zeroed out.
+    fn cholesky_into_dirty(mut self) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        self.cholesky_inplace_dirty()?;
+        Ok(self)
+    }
+
+    /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix in place.
     fn cholesky_inplace(&mut self) -> Result<&mut Self>;
 
     /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix, passing by
@@ -26,7 +41,7 @@ where
     A: Real + NumRef + NumAssignOps,
     S: DataMut<Elem = A>,
 {
-    fn cholesky_inplace(&mut self) -> Result<&mut Self> {
+    fn cholesky_inplace_dirty(&mut self) -> Result<&mut Self> {
         let m = self.nrows();
         let n = self.ncols();
         if m != n {
@@ -53,7 +68,11 @@ where
 
             *self.get_mut((j, j)).unwrap() = d.sqrt();
         }
+        Ok(self)
+    }
 
+    fn cholesky_inplace(&mut self) -> Result<&mut Self> {
+        self.cholesky_inplace_dirty()?;
         self.into_lower_triangular()?;
         Ok(self)
     }
@@ -62,6 +81,11 @@ where
 /// Cholesky decomposition of a positive definite matrix
 pub trait Cholesky {
     type Output;
+
+    /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix without modifying
+    /// or consuming the original.
+    /// The upper triangle portion is not zeroed out.
+    fn cholesky_dirty(&self) -> Result<Self::Output>;
 
     /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix without modifying
     /// or consuming the original.
@@ -74,6 +98,11 @@ where
     S: Data<Elem = A>,
 {
     type Output = Array2<A>;
+
+    fn cholesky_dirty(&self) -> Result<Self::Output> {
+        let arr = self.to_owned();
+        arr.cholesky_into_dirty()
+    }
 
     fn cholesky(&self) -> Result<Self::Output> {
         let arr = self.to_owned();

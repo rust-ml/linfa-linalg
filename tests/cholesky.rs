@@ -1,4 +1,4 @@
-use approx::assert_abs_diff_eq;
+use approx::{assert_abs_diff_eq, assert_abs_diff_ne};
 use ndarray::Array2;
 use ndarray_rand::rand_distr::uniform::SampleUniform;
 use ndarray_rand::rand_distr::Uniform;
@@ -7,7 +7,7 @@ use num_traits::Float;
 use rand::{Rng, SeedableRng};
 use rand_isaac::IsaacRng;
 
-use ndarray_linalg_rs::cholesky::*;
+use ndarray_linalg_rs::{cholesky::*, triangular::*};
 
 fn random_hpd<F: 'static + Float + SampleUniform>(rng: &mut impl Rng, n: usize) -> Array2<F> {
     let arr = Array2::random_using(
@@ -28,14 +28,32 @@ macro_rules! cholesky_test {
 
             let chol = orig.cholesky().unwrap();
             assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = $rtol);
+            let dirty = orig.cholesky_dirty().unwrap();
+            assert_abs_diff_ne!(chol, dirty, epsilon = $rtol);
+            assert_abs_diff_eq!(
+                chol,
+                dirty.into_lower_triangular().unwrap(),
+                epsilon = $rtol
+            );
 
             let chol = orig.clone().cholesky_into().unwrap();
             assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = $rtol);
+            let dirty = orig.clone().cholesky_into_dirty().unwrap();
+            assert_abs_diff_ne!(chol, dirty, epsilon = $rtol);
+            assert_abs_diff_eq!(
+                chol,
+                dirty.into_lower_triangular().unwrap(),
+                epsilon = $rtol
+            );
 
             let mut a = orig.clone();
             let chol = a.cholesky_inplace().unwrap();
             assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = $rtol);
             assert_abs_diff_eq!(a.dot(&a.t()), orig, epsilon = $rtol);
+            let mut b = orig.clone();
+            let dirty = b.cholesky_inplace_dirty().unwrap();
+            assert_abs_diff_ne!(a, dirty, epsilon = $rtol);
+            assert_abs_diff_eq!(a, dirty.into_lower_triangular().unwrap(), epsilon = $rtol);
         }
     };
 }
