@@ -51,7 +51,11 @@ macro_rules! cholesky_test {
             let mut b = orig.clone();
             let dirty = b.cholesky_inplace_dirty().unwrap();
             assert_abs_diff_ne!(a, dirty, epsilon = $rtol);
-            assert_abs_diff_eq!(a, dirty.into_lower_triangular().unwrap(), epsilon = $rtol);
+            assert_abs_diff_eq!(
+                a,
+                dirty.lower_triangular_inplace().unwrap(),
+                epsilon = $rtol
+            );
         }
     };
 }

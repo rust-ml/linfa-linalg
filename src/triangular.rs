@@ -6,21 +6,42 @@ use ndarray::{ArrayBase, DataMut, Ix2};
 use num_traits::Zero;
 
 /// Transform square matrix into triangular matrix
-pub trait IntoTriangular: Sized {
+pub trait IntoTriangular {
+    /// Transform square matrix into a strict upper triangular matrix in place, zeroing out the
+    /// lower elements.
+    fn upper_triangular_inplace(&mut self) -> Result<&mut Self>;
+    /// Transform square matrix into a strict lower triangular matrix in place, zeroing out the
+    /// upper elements.
+    fn lower_triangular_inplace(&mut self) -> Result<&mut Self>;
+
     /// Transform square matrix into a strict upper triangular matrix, zeroing out the lower
     /// elements.
-    fn into_upper_triangular(self) -> Result<Self>;
+    fn into_upper_triangular(self) -> Result<Self>
+    where
+        Self: Sized;
     /// Transform square matrix into a strict lower triangular matrix, zeroing out the upper
     /// elements.
-    fn into_lower_triangular(self) -> Result<Self>;
+    fn into_lower_triangular(self) -> Result<Self>
+    where
+        Self: Sized;
 }
 
-impl<'a, A, S> IntoTriangular for &'a mut ArrayBase<S, Ix2>
+impl<A, S> IntoTriangular for ArrayBase<S, Ix2>
 where
     A: Zero,
     S: DataMut<Elem = A>,
 {
-    fn into_upper_triangular(self) -> Result<Self> {
+    fn into_upper_triangular(mut self) -> Result<Self> {
+        self.upper_triangular_inplace()?;
+        Ok(self)
+    }
+
+    fn into_lower_triangular(mut self) -> Result<Self> {
+        self.lower_triangular_inplace()?;
+        Ok(self)
+    }
+
+    fn upper_triangular_inplace(&mut self) -> Result<&mut Self> {
         let n = check_square(self)?;
         for i in 0..n {
             for j in 0..i {
@@ -30,29 +51,13 @@ where
         Ok(self)
     }
 
-    fn into_lower_triangular(self) -> Result<Self> {
+    fn lower_triangular_inplace(&mut self) -> Result<&mut Self> {
         let n = check_square(self)?;
         for i in 0..n {
             for j in i + 1..n {
                 unsafe { *self.uget_mut((i, j)) = A::zero() };
             }
         }
-        Ok(self)
-    }
-}
-
-impl<A, S> IntoTriangular for ArrayBase<S, Ix2>
-where
-    A: Zero,
-    S: DataMut<Elem = A>,
-{
-    fn into_upper_triangular(mut self) -> Result<Self> {
-        (&mut self).into_upper_triangular()?;
-        Ok(self)
-    }
-
-    fn into_lower_triangular(mut self) -> Result<Self> {
-        (&mut self).into_lower_triangular()?;
         Ok(self)
     }
 }

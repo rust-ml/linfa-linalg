@@ -74,7 +74,7 @@ where
 
     fn cholesky_inplace(&mut self) -> Result<&mut Self> {
         self.cholesky_inplace_dirty()?;
-        self.into_lower_triangular()?;
+        self.lower_triangular_inplace()?;
         Ok(self)
     }
 }
