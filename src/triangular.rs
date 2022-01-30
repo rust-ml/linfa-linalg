@@ -15,7 +15,6 @@ pub trait IntoTriangular: Sized {
     fn into_lower_triangular(self) -> Result<Self>;
 }
 
-// TODO change to uget_mut
 impl<'a, A, S> IntoTriangular for &'a mut ArrayBase<S, Ix2>
 where
     A: Zero,
@@ -25,7 +24,7 @@ where
         let n = check_square(self)?;
         for i in 0..n {
             for j in 0..i {
-                *self.get_mut((i, j)).unwrap() = A::zero();
+                unsafe { *self.uget_mut((i, j)) = A::zero() };
             }
         }
         Ok(self)
@@ -35,7 +34,7 @@ where
         let n = check_square(self)?;
         for i in 0..n {
             for j in i + 1..n {
-                *self.get_mut((i, j)).unwrap() = A::zero();
+                unsafe { *self.uget_mut((i, j)) = A::zero() };
             }
         }
         Ok(self)
