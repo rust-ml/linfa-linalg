@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Miri
-      - uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: nightly
