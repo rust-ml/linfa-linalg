@@ -79,7 +79,7 @@ where
     }
 }
 
-/// Cholesky decomposition of a positive definite matrix
+/// Cholesky decomposition of a positive definite matrix, without modifying the original
 pub trait Cholesky {
     type Output;
 
