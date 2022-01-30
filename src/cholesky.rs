@@ -1,10 +1,24 @@
+//! Cholesky decomposition of positive definite matrices
+
 use crate::{triangular::IntoTriangular, LinalgError, Result};
 
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
 use num_traits::{real::Real, NumAssignOps, NumRef};
 
+/// Cholesky decomposition of a positive definite matrix
 pub trait CholeskyInplace {
+    /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix in place.
     fn cholesky_inplace(&mut self) -> Result<&mut Self>;
+
+    /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix, passing by
+    /// value.
+    fn cholesky_into(mut self) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        self.cholesky_inplace()?;
+        Ok(self)
+    }
 }
 
 impl<A, S> CholeskyInplace for ArrayBase<S, Ix2>
@@ -45,28 +59,12 @@ where
     }
 }
 
-pub trait CholeskyInto {
-    type Output;
-
-    fn cholesky_into(self) -> Result<Self::Output>;
-}
-
-impl<A, S> CholeskyInto for ArrayBase<S, Ix2>
-where
-    A: Real + NumRef + NumAssignOps,
-    S: DataMut<Elem = A>,
-{
-    type Output = Self;
-
-    fn cholesky_into(mut self) -> Result<Self::Output> {
-        self.cholesky_inplace()?;
-        Ok(self)
-    }
-}
-
+/// Cholesky decomposition of a positive definite matrix
 pub trait Cholesky {
     type Output;
 
+    /// Computes decomposition `A = L * L.t` where L is a lower-triangular matrix without modifying
+    /// or consuming the original.
     fn cholesky(&self) -> Result<Self::Output>;
 }
 

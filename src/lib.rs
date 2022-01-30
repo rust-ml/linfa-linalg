@@ -1,3 +1,6 @@
+//! Provides pure-Rust implementations of linear algebra routines for `ndarray` without depending
+//! on external LAPACK libraries.
+
 pub mod cholesky;
 pub mod triangular;
 
@@ -7,8 +10,10 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum LinalgError {
+    /// Non-square matrix encountered in operations requiring square matrices
     #[error("Matrix with {rows} rows and {cols} cols is not square")]
     NotSquare { rows: usize, cols: usize },
+    /// Non-positive definite matrix encountered when expecting a positive definite matrix
     #[error("Matrix is not positive definite")]
     NotPositiveDefinite,
 }

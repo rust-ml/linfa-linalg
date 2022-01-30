@@ -1,10 +1,17 @@
+//! Traits for creating and manipulating triangular matrices
+
 use crate::{check_square, Result};
 
 use ndarray::{ArrayBase, DataMut, Ix2};
 use num_traits::Zero;
 
+/// Transform square matrix into triangular matrix
 pub trait IntoTriangular: Sized {
+    /// Transform square matrix into a strict upper triangular matrix, zeroing out the lower
+    /// elements.
     fn into_upper_triangular(self) -> Result<Self>;
+    /// Transform square matrix into a strict lower triangular matrix, zeroing out the upper
+    /// elements.
     fn into_lower_triangular(self) -> Result<Self>;
 }
 
