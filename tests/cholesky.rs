@@ -1,7 +1,6 @@
 use approx::{assert_abs_diff_eq, assert_abs_diff_ne};
 use ndarray::Array2;
-use ndarray_rand::rand_distr::uniform::SampleUniform;
-use ndarray_rand::rand_distr::Uniform;
+use ndarray_rand::rand_distr::{Distribution, Standard};
 use ndarray_rand::RandomExt;
 use num_traits::Float;
 use rand::{Rng, SeedableRng};
@@ -9,12 +8,11 @@ use rand_isaac::IsaacRng;
 
 use ndarray_linalg_rs::{cholesky::*, triangular::*};
 
-fn random_hpd<F: 'static + Float + SampleUniform>(rng: &mut impl Rng, n: usize) -> Array2<F> {
-    let arr = Array2::random_using(
-        (n, n),
-        Uniform::new(F::zero(), F::from(100.0).unwrap()),
-        rng,
-    );
+fn random_hpd<F: 'static + Float>(rng: &mut impl Rng, n: usize) -> Array2<F>
+where
+    Standard: Distribution<F>,
+{
+    let arr = Array2::random_using((n, n), Standard, rng);
     let mul = &arr.t().dot(&arr);
     Array2::eye(n) + mul
 }
