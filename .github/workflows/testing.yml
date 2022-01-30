@@ -1,0 +1,53 @@
+on: [push, pull_request]
+
+name: Run Tests
+
+jobs:
+  testing:
+    name: testing
+    runs-on: ubuntu-18.04
+    if: github.event.pull_request.draft == false
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 1.54.0
+          - stable
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+  miri:
+    name: miri
+    runs-on: ubuntu-18.04
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Miri
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: miri
+
+      - name: Run Miri
+      - uses: actions-rs/cargo@v1
+        with:
+          command: miri
+          args: test
