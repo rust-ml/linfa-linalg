@@ -30,16 +30,16 @@ fn householder_reflection_axis_mut<A: Float, S: DataMut<Elem = A>>(
     }
 }
 
-pub trait SymmetricTridiagonal {
-    fn sym_tridiagonal_inplace(&mut self) -> Result<&mut Self>;
+pub trait SymmetricTridiagonal<T> {
+    fn sym_tridiagonal_inplace(&mut self) -> Result<T>;
 }
 
-impl<S, A> SymmetricTridiagonal for ArrayBase<S, Ix2>
+impl<S, A> SymmetricTridiagonal<Array1<A>> for ArrayBase<S, Ix2>
 where
     A: Float,
     S: DataMut<Elem = A>,
 {
-    fn sym_tridiagonal_inplace(&mut self) -> Result<&mut Self> {
+    fn sym_tridiagonal_inplace(&mut self) -> Result<Array1<A>> {
         let n = check_square(self)?;
         if n < 1 {
             return Err(LinalgError::EmptyMatrix);
@@ -71,7 +71,7 @@ where
             }
         }
 
-        Ok(self)
+        Ok(off_diagonal)
     }
 }
 
