@@ -10,6 +10,7 @@
 //! linker errors if no BLAS backend is specified.
 
 pub mod cholesky;
+mod reflection;
 pub mod triangular;
 pub mod tridiagonal;
 
