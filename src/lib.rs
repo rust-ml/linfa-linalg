@@ -11,6 +11,7 @@
 
 pub mod cholesky;
 pub mod triangular;
+pub mod tridiagonal;
 
 use ndarray::{ArrayBase, Ix2, RawData};
 use thiserror::Error;
