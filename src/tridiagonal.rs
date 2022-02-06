@@ -1,13 +1,12 @@
-use ndarray::{ArrayViewMut1, ScalarOperand};
-use num_traits::{Float, NumAssignOps};
+use ndarray::ArrayViewMut1;
+
+use crate::Float;
 
 /// Performs Householder reflection on a single column
 ///
 /// Returns what would be the first component of column after reflection if a reflection was
 /// actually performed.
-fn householder_reflection_axis_mut<F: 'static + Float + NumAssignOps + ScalarOperand>(
-    mut col: ArrayViewMut1<F>,
-) -> Option<F> {
+fn householder_reflection_axis_mut<F: Float>(mut col: ArrayViewMut1<F>) -> Option<F> {
     let reflection_norm_sq = col.dot(&col);
     let reflection_norm = reflection_norm_sq.sqrt();
 
