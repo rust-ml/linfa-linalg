@@ -13,19 +13,25 @@ pub mod cholesky;
 pub mod triangular;
 pub mod tridiagonal;
 
-use ndarray::{ArrayBase, Ix2, RawData, ScalarOperand};
+use ndarray::{ArrayBase, Ix2, RawData, ScalarOperand, ShapeError};
 use num_traits::{NumAssignOps, NumRef};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum LinalgError {
-    /// Non-square matrix encountered in operations requiring square matrices
-    #[error("Matrix with {rows} rows and {cols} cols is not square")]
+    /// Non-square matrix
+    #[error("Matrix of ({rows}, {cols}) is not square")]
     NotSquare { rows: usize, cols: usize },
-    /// Non-positive definite matrix encountered when expecting a positive definite matrix
+    /// Non-positive definite matrix
     #[error("Matrix is not positive definite")]
     NotPositiveDefinite,
+    /// Unexpected empty matrix
+    #[error("Matrix is empty")]
+    EmptyMatrix,
+    /// ShapeError from `ndarray`
+    #[error(transparent)]
+    Shape(#[from] ShapeError),
 }
 
 pub type Result<T> = std::result::Result<T, LinalgError>;
