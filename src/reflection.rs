@@ -3,7 +3,7 @@ use ndarray::{ArrayBase, Data, DataMut, Ix1, Ix2};
 use crate::Float;
 
 /// Reflection with respect to a plane
-struct Reflection<A, D: Data<Elem = A>> {
+pub struct Reflection<A, D: Data<Elem = A>> {
     axis: ArrayBase<D, Ix1>,
     bias: A,
 }
@@ -13,14 +13,14 @@ impl<A, D: Data<Elem = A>> Reflection<A, D> {
     ///
     /// `axis` must be a unit vector
     /// `bias` is the position of the plane on the axis from the origin
-    fn new(axis: ArrayBase<D, Ix1>, bias: A) -> Self {
+    pub fn new(axis: ArrayBase<D, Ix1>, bias: A) -> Self {
         Self { axis, bias }
     }
 }
 
 impl<A: Float, D: Data<Elem = A>> Reflection<A, D> {
     /// Apply reflection to the columns of `rhs`
-    fn reflect_col<M: DataMut<Elem = A>>(&self, rhs: &mut ArrayBase<M, Ix2>) {
+    pub fn reflect_col<M: DataMut<Elem = A>>(&self, rhs: &mut ArrayBase<M, Ix2>) {
         for i in 0..rhs.ncols() {
             let m_two = A::from(-2.0f64).unwrap();
             let factor = (self.axis.dot(&rhs.column(i)) - self.bias) * m_two;
