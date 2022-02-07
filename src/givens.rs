@@ -31,6 +31,17 @@ impl<A: Float> GivensRotation<A> {
         Self { c, s }
     }
 
+    pub fn try_new(c: A, s: A, eps: A) -> Option<(Self, A)> {
+        let norm = (c * c + s * s).sqrt();
+        if norm > eps {
+            let c = c / norm;
+            let s = s / norm;
+            Some((Self { c, s }, norm))
+        } else {
+            None
+        }
+    }
+
     pub fn c(&self) -> A {
         self.c
     }
