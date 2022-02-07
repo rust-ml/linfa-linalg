@@ -10,6 +10,8 @@
 //! linker errors if no BLAS backend is specified.
 
 pub mod cholesky;
+pub mod eigh;
+mod givens;
 mod reflection;
 pub mod triangular;
 pub mod tridiagonal;
@@ -30,6 +32,9 @@ pub enum LinalgError {
     /// Unexpected empty matrix
     #[error("Matrix is empty")]
     EmptyMatrix,
+    /// Wrong number of columns in matrix
+    #[error("Matrix must have {expected} columns, not {actual}")]
+    WrongColumns { expected: usize, actual: usize },
     /// ShapeError from `ndarray`
     #[error(transparent)]
     Shape(#[from] ShapeError),
