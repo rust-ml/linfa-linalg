@@ -1,10 +1,10 @@
 use ndarray::{
     linalg::{general_mat_mul, general_mat_vec_mul},
-    s, Array1, Array2, ArrayBase, Data, DataMut, Ix1, Ix2,
+    s, Array1, Array2, ArrayBase, Axis, DataMut, Ix1, Ix2,
 };
 
-use crate::reflection::Reflection;
 use crate::{check_square, Float, LinalgError, Result};
+use crate::{reflection::Reflection, triangular::IntoTriangular};
 
 /// Performs Householder reflection on a single column
 ///
@@ -31,25 +31,21 @@ fn householder_reflection_axis_mut<A: Float, S: DataMut<Elem = A>>(
     }
 }
 
-pub trait SymmetricTridiagonal<T> {
-    fn sym_tridiagonal_inplace(&mut self) -> Result<T>;
+pub trait SymmetricTridiagonal {
+    type Decomp;
 
-    fn sym_tridiagonal_into(mut self) -> Result<(Self, T)>
-    where
-        Self: Sized,
-    {
-        let out = self.sym_tridiagonal_inplace()?;
-        Ok((self, out))
-    }
+    fn sym_tridiagonal(self) -> Result<Self::Decomp>;
 }
 
-impl<S, A> SymmetricTridiagonal<Array1<A>> for ArrayBase<S, Ix2>
+impl<S, A> SymmetricTridiagonal for ArrayBase<S, Ix2>
 where
     A: Float,
     S: DataMut<Elem = A>,
 {
-    fn sym_tridiagonal_inplace(&mut self) -> Result<Array1<A>> {
-        let n = check_square(self)?;
+    type Decomp = TridiagonalDecomp<A, S>;
+
+    fn sym_tridiagonal(mut self) -> Result<Self::Decomp> {
+        let n = check_square(&self)?;
         if n < 1 {
             return Err(LinalgError::EmptyMatrix);
         }
@@ -69,60 +65,69 @@ where
                 general_mat_vec_mul(A::from(2.0f64).unwrap(), &m, &axis, A::zero(), &mut p);
                 let dot = axis.dot(&p);
 
-                let mlen = m.nrows();
-                let p_row = p.view().into_shape((1, mlen))?;
-                let p_col = p.view().into_shape((mlen, 1))?;
-                let ax_row = axis.view().into_shape((1, mlen))?;
-                let ax_col = axis.view().into_shape((mlen, 1))?;
+                let p_row = p.view().insert_axis(Axis(0));
+                let p_col = p.view().insert_axis(Axis(1));
+                let ax_row = axis.view().insert_axis(Axis(0));
+                let ax_col = axis.view().insert_axis(Axis(1));
                 general_mat_mul(-A::one(), &p_col, &ax_row, A::one(), &mut m);
                 general_mat_mul(-A::one(), &ax_col, &p_row, A::one(), &mut m);
                 general_mat_mul(dot + dot, &ax_col, &ax_row, A::one(), &mut m);
             }
         }
 
-        Ok(off_diagonal)
-    }
-}
-
-/// Full tridiagonal decomposition, including the reconstructed Q matrix
-pub struct TridiagonalDecomp<A> {
-    pub off_diagonal: Array1<A>,
-    pub q_matrix: Array2<A>,
-}
-
-impl<A: Float> TridiagonalDecomp<A> {
-    fn from_off_diagonal<D: Data<Elem = A>>(
-        m: &ArrayBase<D, Ix2>,
-        off_diagonal: Array1<A>,
-    ) -> Result<Self> {
-        let n = check_square(m)?;
-
-        let mut q_matrix = Array2::eye(n);
-        for i in (0..n - 1).rev() {
-            let axis = m.slice(s![i + 1.., i]);
-            let refl = Reflection::new(axis, A::zero());
-
-            let mut q_rows = q_matrix.slice_mut(s![i + 1.., i..]);
-            refl.reflect_col(&mut q_rows);
-            q_rows *= off_diagonal[i].signum();
-        }
-
-        Ok(Self {
+        Ok(TridiagonalDecomp {
+            diag_matrix: self,
             off_diagonal,
-            q_matrix,
         })
     }
 }
 
-impl<S, A> SymmetricTridiagonal<TridiagonalDecomp<A>> for ArrayBase<S, Ix2>
-where
-    A: Float,
-    S: DataMut<Elem = A>,
-{
-    fn sym_tridiagonal_inplace(&mut self) -> Result<TridiagonalDecomp<A>> {
-        let off_diagonal = self.sym_tridiagonal_inplace()?;
-        let decomp = TridiagonalDecomp::from_off_diagonal(self, off_diagonal)?;
-        Ok(decomp)
+/// Full tridiagonal decomposition, including the reconstructed Q matrix
+#[derive(Debug)]
+pub struct TridiagonalDecomp<A, S: DataMut<Elem = A>> {
+    // This matrix is only useful for its diagonal, which is the diagonal of the tridiagonal matrix
+    // Guaranteed to be square matrix
+    diag_matrix: ArrayBase<S, Ix2>,
+    // The off-diagonal elements of the tridiagonal matrix
+    off_diagonal: Array1<A>,
+}
+
+impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
+    /// Construct the orthogonal matrix Q from the off-diagonal entries
+    pub fn generate_q(&self) -> Array2<A> {
+        let n = self.diag_matrix.nrows();
+
+        let mut q_matrix = Array2::eye(n);
+        for i in (0..n - 1).rev() {
+            let axis = self.diag_matrix.slice(s![i + 1.., i]);
+            let refl = Reflection::new(axis, A::zero());
+
+            let mut q_rows = q_matrix.slice_mut(s![i + 1.., i..]);
+            refl.reflect_col(&mut q_rows);
+            q_rows *= self.off_diagonal[i].signum();
+        }
+
+        q_matrix
+    }
+
+    /// Return the diagonal elements and off-diagonal elements of the tridiagonal matrix
+    pub fn into_diagonals(self) -> (Array1<A>, Array1<A>) {
+        (
+            self.diag_matrix.diag().to_owned(),
+            self.off_diagonal.mapv_into(A::abs),
+        )
+    }
+
+    /// Return the full tridiagonal matrix
+    pub fn into_tridiag_matrix(mut self) -> ArrayBase<S, Ix2> {
+        self.diag_matrix.upper_triangular_inplace().unwrap();
+        self.diag_matrix.lower_triangular_inplace().unwrap();
+        for (i, off) in self.off_diagonal.into_iter().enumerate() {
+            let off = off.abs();
+            self.diag_matrix[(i + 1, i)] = off;
+            self.diag_matrix[(i, i + 1)] = off;
+        }
+        self.diag_matrix
     }
 }
 
@@ -149,5 +154,48 @@ mod tests {
         let mut arr = array![0., 0.];
         assert_eq!(householder_reflection_axis_mut(&mut arr), None);
         assert_abs_diff_eq!(arr, array![0., 0.]);
+    }
+
+    #[test]
+    fn sym_tridiagonal() {
+        let arr = array![
+            [4.0f64, 1., -2., 2.],
+            [1., 2., 0., 1.],
+            [-2., 0., 3., -2.],
+            [2., 1., -2., -1.]
+        ];
+
+        let decomp = arr.clone().sym_tridiagonal().unwrap();
+        let (diag, offdiag) = decomp.into_diagonals();
+        assert_abs_diff_eq!(
+            diag,
+            array![4., 10. / 3., -33. / 25., 149. / 75.],
+            epsilon = 1e-5
+        );
+        assert_abs_diff_eq!(offdiag, array![3., 5. / 3., 68. / 75.], epsilon = 1e-5);
+
+        let decomp = arr.clone().sym_tridiagonal().unwrap();
+        let q = decomp.generate_q();
+        let tri = decomp.into_tridiag_matrix();
+        assert_abs_diff_eq!(q.dot(&tri).dot(&q.t()), arr, epsilon = 1e-9);
+        // Q must be orthogonal
+        assert_abs_diff_eq!(q.dot(&q.t()), Array2::eye(4), epsilon = 1e-9);
+
+        let one = array![[1.1f64]].sym_tridiagonal().unwrap();
+        let (one_diag, one_offdiag) = one.into_diagonals();
+        assert_abs_diff_eq!(one_diag, array![1.1f64]);
+        assert!(one_offdiag.is_empty());
+    }
+
+    #[test]
+    fn sym_tridiag_error() {
+        assert!(matches!(
+            array![[1., 2., 3.], [5., 4., 3.0f64]].sym_tridiagonal(),
+            Err(LinalgError::NotSquare { rows: 2, cols: 3 })
+        ));
+        assert!(matches!(
+            Array2::<f64>::zeros((0, 0)).sym_tridiagonal(),
+            Err(LinalgError::EmptyMatrix)
+        ));
     }
 }
