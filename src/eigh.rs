@@ -17,9 +17,9 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
     };
     let (mut diag, mut off_diag) = tridiag_decomp.into_diagonals();
 
-    if dim == 1 {
-        return Ok((diag, q_mat));
-    }
+    //if dim == 1 {
+    //return Ok((diag, q_mat));
+    //}
 
     let (mut start, mut end) = delimit_subproblem(&diag, &mut off_diag, dim - 1, eps);
 

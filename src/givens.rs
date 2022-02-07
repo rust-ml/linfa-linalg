@@ -68,3 +68,46 @@ impl<A: Float> GivensRotation<A> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_abs_diff_eq;
+    use ndarray::array;
+
+    use super::*;
+
+    #[test]
+    fn cancel_y() {
+        let (rot, r) = GivensRotation::cancel_y(1.0f64, 2.0).unwrap();
+        assert_abs_diff_eq!(r, 5.0_f64.sqrt());
+        assert_abs_diff_eq!(rot.c, 0.4472136, epsilon = 1e-5);
+        assert_abs_diff_eq!(rot.s, -0.8944272, epsilon = 1e-5);
+        assert_abs_diff_eq!(
+            array![[rot.c, -rot.s], [rot.s, rot.c]].dot(&array![1., 2.]),
+            array![r, 0.]
+        );
+
+        assert!(GivensRotation::cancel_y(3.0f64, 0.).is_none());
+    }
+
+    #[test]
+    fn rotate_rows() {
+        let (rot, _) = GivensRotation::cancel_y(1.0f64, 2.0).unwrap();
+        let rows = array![[2., 3.], [4., 5.], [1., 2.], [3., 4.]];
+        let mut out = rows.clone();
+        rot.rotate_rows(&mut out).unwrap();
+        assert_abs_diff_eq!(
+            rows.dot(&array![[rot.c, -rot.s], [rot.s, rot.c]]),
+            out,
+            epsilon = 1e-5
+        );
+
+        assert!(matches!(
+            rot.rotate_rows(&mut array![[1., 2., 3.]]),
+            Err(LinalgError::WrongColumns {
+                expected: 2,
+                actual: 3
+            })
+        ));
+    }
+}
