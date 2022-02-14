@@ -1,15 +1,24 @@
 use ndarray::{s, Array1, Array2, ArrayBase, DataMut, Ix2};
 
 use crate::{
-    check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Float, Result,
+    check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Float, LinalgError,
+    Result,
 };
 
 fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
-    matrix: ArrayBase<S, Ix2>,
+    mut matrix: ArrayBase<S, Ix2>,
     eigenvectors: bool,
     eps: A,
 ) -> Result<(Array1<A>, Option<Array2<A>>)> {
     let dim = check_square(&matrix)?;
+    let amax = matrix
+        .iter()
+        .map(|f| f.abs())
+        .fold(A::neg_infinity(), |a, b| a.max(b));
+
+    if amax != A::zero() {
+        matrix /= amax;
+    }
 
     let tridiag_decomp = matrix.sym_tridiagonal()?;
     let mut q_mat = if eigenvectors {
@@ -20,6 +29,7 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
     let (mut diag, mut off_diag) = tridiag_decomp.into_diagonals();
 
     if dim == 1 {
+        diag *= amax;
         return Ok((diag, q_mat));
     }
 
@@ -83,7 +93,7 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
                 off_diag[start],
                 diag[start + 1],
             )
-            .unwrap();
+            .unwrap(); // XXX not sure when this unwrap panics
             let basis = (eigvals.0 - diag[start + 1], off_diag[start]);
 
             diag[start] = eigvals.0;
@@ -103,6 +113,7 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
         end = sub.1;
     }
 
+    diag *= amax;
     Ok((diag, q_mat))
 }
 
@@ -116,7 +127,7 @@ fn delimit_subproblem<A: Float>(
 
     while n > 0 {
         let m = n - 1;
-        if off_diag[m].abs() > eps * diag[n].abs() + diag[m].abs() {
+        if off_diag[m].abs() > eps * (diag[n].abs() + diag[m].abs()) {
             break;
         }
         n -= 1;
@@ -133,6 +144,7 @@ fn delimit_subproblem<A: Float>(
             || off_diag[m].abs() <= eps * (diag[new_start].abs() + diag[m].abs())
         {
             off_diag[m] = A::zero();
+            break;
         }
         new_start -= 1;
     }
@@ -147,8 +159,8 @@ fn delimit_subproblem<A: Float>(
 ///     tmm  tmn
 ///     tmn  tnn
 fn wilkinson_shift<A: Float>(tmm: A, tnn: A, tmn: A) -> A {
-    let tmn_sq = tmn * tmn;
-    if !tmn_sq.is_zero() {
+    if !tmn.is_zero() {
+        let tmn_sq = tmn * tmn;
         let d = (tmm - tnn) * A::from(0.5).unwrap();
         tnn - tmn_sq / (d + d.signum() * (d * d + tmn_sq).sqrt())
     } else {
@@ -165,5 +177,102 @@ fn compute_2x2_eigvals<A: Float>(h00: A, h10: A, h01: A, h11: A) -> Option<(A, A
         Some((half_tra + sqrt_discr, half_tra - sqrt_discr))
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_abs_diff_eq;
+    use approx::AbsDiffEq;
+    use ndarray::array;
+    use ndarray::Axis;
+
+    use super::*;
+
+    #[test]
+    fn eigvals_2x2() {
+        let (e1, e2) = compute_2x2_eigvals(5., 4., 3., 2.).unwrap();
+        assert_abs_diff_eq!(e1, 7.2749172, epsilon = 1e-5);
+        assert_abs_diff_eq!(e2, -0.2749172, epsilon = 1e-5);
+
+        let (e1, e2) = compute_2x2_eigvals(6., 2., -1., 3.).unwrap();
+        assert_abs_diff_eq!(e1, 5., epsilon = 1e-5);
+        assert_abs_diff_eq!(e2, 4., epsilon = 1e-5);
+
+        let (e1, e2) = compute_2x2_eigvals(6., 2., 2., 6.).unwrap();
+        assert_abs_diff_eq!(e1, 8., epsilon = 1e-5);
+        assert_abs_diff_eq!(e2, 4., epsilon = 1e-5);
+
+        assert_eq!(compute_2x2_eigvals(-2., 3., -3., -2.), None);
+    }
+
+    #[test]
+    fn symm_eigvals() {
+        let (vals, vecs) =
+            symmetric_eig(array![[6., 2.], [2., 6.]], false, f64::default_epsilon()).unwrap();
+        assert_abs_diff_eq!(vals, array![8., 4.]);
+        assert_eq!(vecs, None);
+
+        let (vals, vecs) = symmetric_eig(
+            array![[1., -5., 7.], [-5., 2., -9.], [7., -9., 3.]],
+            false,
+            f64::default_epsilon(),
+        )
+        .unwrap();
+        assert_abs_diff_eq!(vals, array![16.28378, -3.41558, -6.86819], epsilon = 1e-5);
+        assert_eq!(vecs, None);
+    }
+
+    fn test_eigvecs(a: Array2<f64>, exp_vals: Array1<f64>) {
+        let n = a.nrows();
+        let (vals, vecs) = symmetric_eig(a.clone(), true, f64::default_epsilon()).unwrap();
+        let vecs = vecs.unwrap();
+        assert_abs_diff_eq!(vals, exp_vals, epsilon = 1e-5);
+
+        let s = vecs.t().dot(&vecs);
+        assert_abs_diff_eq!(s, Array2::eye(n), epsilon = 1e-5);
+
+        for (i, v) in vecs.axis_iter(Axis(1)).enumerate() {
+            let av = a.dot(&v);
+            let ev = v.mapv(|x| vals[i] * x);
+            assert_abs_diff_eq!(av, ev, epsilon = 1e-5);
+        }
+    }
+
+    #[test]
+    fn sym_eigvecs1() {
+        test_eigvecs(
+            array![[3., 1., 1.], [1., 3., 1.], [1., 1., 3.]],
+            array![5., 2., 2.],
+        );
+    }
+
+    #[test]
+    fn sym_eigvecs2() {
+        test_eigvecs(array![[6., 2.], [2., 6.]], array![8., 4.]);
+    }
+
+    #[test]
+    fn sym_eigvecs3() {
+        test_eigvecs(
+            array![[1., -5., 7.], [-5., 2., -9.], [7., -9., 3.]],
+            array![16.28378, -3.41558, -6.86819],
+        );
+    }
+
+    #[test]
+    fn corner() {
+        assert!(matches!(
+            symmetric_eig(Array2::zeros((0, 0)), true, f64::default_epsilon()),
+            Err(LinalgError::EmptyMatrix)
+        ));
+        symmetric_eig(Array2::zeros((1, 1)), true, f64::default_epsilon()).unwrap();
+        assert!(matches!(
+            symmetric_eig(Array2::zeros((3, 1)), true, f64::default_epsilon()),
+            Err(LinalgError::NotSquare { rows: 3, cols: 1 })
+        ));
+        // Non-symmetric cases
+        symmetric_eig(array![[5., 4.], [3., 2.]], true, f64::default_epsilon()).unwrap();
+        symmetric_eig(array![[-2., 3.], [-3., -2.]], true, f64::default_epsilon()).unwrap();
     }
 }
