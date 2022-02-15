@@ -26,11 +26,6 @@ impl<A: Float> GivensRotation<A> {
         }
     }
 
-    /// Constructs Givens rotation without checking whether `c` and `s` are valid
-    pub fn new_unchecked(c: A, s: A) -> Self {
-        Self { c, s }
-    }
-
     pub fn try_new(c: A, s: A, eps: A) -> Option<(Self, A)> {
         let norm = (c * c + s * s).sqrt();
         if norm > eps {

@@ -1,3 +1,5 @@
+//! Tridiagonal decomposition of a symmetric matrix
+
 use ndarray::{
     linalg::{general_mat_mul, general_mat_vec_mul},
     s, Array1, Array2, ArrayBase, Axis, DataMut, Ix1, Ix2,
@@ -31,9 +33,13 @@ fn householder_reflection_axis_mut<A: Float, S: DataMut<Elem = A>>(
     }
 }
 
+/// Tridiagonal decomposition of a symmetric matrix
 pub trait SymmetricTridiagonal {
     type Decomp;
 
+    /// Calculate the tridiagonal decomposition of a symmetric matrix, consisting of symmetric
+    /// tridiagonal matrix `T` and orthogonal matrix `Q`, such that `Q * T * Q.t` yields the
+    /// original matrix.
     fn sym_tridiagonal(self) -> Result<Self::Decomp>;
 }
 
@@ -82,7 +88,7 @@ where
     }
 }
 
-/// Full tridiagonal decomposition, including the reconstructed Q matrix
+/// Full tridiagonal decomposition, containing the symmetric tridiagonal matrix `T`
 #[derive(Debug)]
 pub struct TridiagonalDecomp<A, S: DataMut<Elem = A>> {
     // This matrix is only useful for its diagonal, which is the diagonal of the tridiagonal matrix
@@ -93,7 +99,7 @@ pub struct TridiagonalDecomp<A, S: DataMut<Elem = A>> {
 }
 
 impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
-    /// Construct the orthogonal matrix Q from the off-diagonal entries
+    /// Construct the orthogonal matrix `Q`, where `Q * T * Q.t` results in the original matrix
     pub fn generate_q(&self) -> Array2<A> {
         let n = self.diag_matrix.nrows();
 
@@ -110,7 +116,8 @@ impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
         q_matrix
     }
 
-    /// Return the diagonal elements and off-diagonal elements of the tridiagonal matrix
+    /// Return the diagonal elements and off-diagonal elements of the tridiagonal matrix as 1D
+    /// arrays
     pub fn into_diagonals(self) -> (Array1<A>, Array1<A>) {
         (
             self.diag_matrix.diag().to_owned(),
@@ -118,7 +125,7 @@ impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
         )
     }
 
-    /// Return the full tridiagonal matrix
+    /// Return the full tridiagonal matrix `T`
     pub fn into_tridiag_matrix(mut self) -> ArrayBase<S, Ix2> {
         self.diag_matrix.upper_triangular_inplace().unwrap();
         self.diag_matrix.lower_triangular_inplace().unwrap();
