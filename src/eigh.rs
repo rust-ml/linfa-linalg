@@ -1,8 +1,9 @@
-use ndarray::{s, Array1, Array2, ArrayBase, DataMut, Ix2};
+//! Eigendecomposition for symmetric square matrices
+
+use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2};
 
 use crate::{
-    check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Float, LinalgError,
-    Result,
+    check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Float, Result,
 };
 
 fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
@@ -180,12 +181,82 @@ fn compute_2x2_eigvals<A: Float>(h00: A, h10: A, h01: A, h11: A) -> Option<(A, A
     }
 }
 
+/// Eigendecomposition of symmetric matrices
+pub trait EighInto: Sized {
+    type EigVal;
+    type EigVec;
+
+    /// Calculate eigenvalues and eigenvectors of symmetric matrices, consuming the original
+    fn eigh_into(self) -> Result<(Self::EigVal, Self::EigVec)>;
+}
+
+impl<A: Float, S: DataMut<Elem = A>> EighInto for ArrayBase<S, Ix2> {
+    type EigVal = Array1<A>;
+    type EigVec = Array2<A>;
+
+    fn eigh_into(self) -> Result<(Self::EigVal, Self::EigVec)> {
+        let (val, vecs) = symmetric_eig(self, true, A::epsilon())?;
+        Ok((val, vecs.unwrap()))
+    }
+}
+
+/// Eigendecomposition of symmetric matrices
+pub trait Eigh {
+    type EigVal;
+    type EigVec;
+
+    /// Calculate eigenvalues and eigenvectors of symmetric matrices
+    fn eigh(&self) -> Result<(Self::EigVal, Self::EigVec)>;
+}
+
+impl<A: Float, S: Data<Elem = A>> Eigh for ArrayBase<S, Ix2> {
+    type EigVal = Array1<A>;
+    type EigVec = Array2<A>;
+
+    fn eigh(&self) -> Result<(Self::EigVal, Self::EigVec)> {
+        self.to_owned().eigh_into()
+    }
+}
+
+/// Eigenvalues of symmetric matrices
+pub trait EigValshInto {
+    type EigVal;
+
+    /// Calculate eigenvalues of symmetric matrices without eigenvectors, consuming the original
+    fn eigvalsh_into(self) -> Result<Self::EigVal>;
+}
+
+impl<A: Float, S: DataMut<Elem = A>> EigValshInto for ArrayBase<S, Ix2> {
+    type EigVal = Array1<A>;
+
+    fn eigvalsh_into(self) -> Result<Self::EigVal> {
+        symmetric_eig(self, false, A::epsilon()).map(|(vals, _)| vals)
+    }
+}
+
+/// Eigenvalues of symmetric matrices
+pub trait EigValsh {
+    type EigVal;
+
+    /// Calculate eigenvalues of symmetric matrices without eigenvectors
+    fn eigvalsh(&self) -> Result<Self::EigVal>;
+}
+
+impl<A: Float, S: Data<Elem = A>> EigValsh for ArrayBase<S, Ix2> {
+    type EigVal = Array1<A>;
+
+    fn eigvalsh(&self) -> Result<Self::EigVal> {
+        self.to_owned().eigvalsh_into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_abs_diff_eq;
-    use approx::AbsDiffEq;
     use ndarray::array;
     use ndarray::Axis;
+
+    use crate::LinalgError;
 
     use super::*;
 
@@ -208,15 +279,14 @@ mod tests {
 
     #[test]
     fn symm_eigvals() {
-        let (vals, vecs) =
-            symmetric_eig(array![[6., 2.], [2., 6.]], false, f64::default_epsilon()).unwrap();
+        let (vals, vecs) = symmetric_eig(array![[6., 2.], [2., 6.]], false, f64::EPSILON).unwrap();
         assert_abs_diff_eq!(vals, array![8., 4.]);
         assert_eq!(vecs, None);
 
         let (vals, vecs) = symmetric_eig(
             array![[1., -5., 7.], [-5., 2., -9.], [7., -9., 3.]],
             false,
-            f64::default_epsilon(),
+            f64::EPSILON,
         )
         .unwrap();
         assert_abs_diff_eq!(vals, array![16.28378, -3.41558, -6.86819], epsilon = 1e-5);
@@ -225,7 +295,7 @@ mod tests {
 
     fn test_eigvecs(a: Array2<f64>, exp_vals: Array1<f64>) {
         let n = a.nrows();
-        let (vals, vecs) = symmetric_eig(a.clone(), true, f64::default_epsilon()).unwrap();
+        let (vals, vecs) = symmetric_eig(a.clone(), true, f64::EPSILON).unwrap();
         let vecs = vecs.unwrap();
         assert_abs_diff_eq!(vals, exp_vals, epsilon = 1e-5);
 
@@ -263,16 +333,16 @@ mod tests {
     #[test]
     fn corner() {
         assert!(matches!(
-            symmetric_eig(Array2::zeros((0, 0)), true, f64::default_epsilon()),
+            symmetric_eig(Array2::zeros((0, 0)), true, f64::EPSILON),
             Err(LinalgError::EmptyMatrix)
         ));
-        symmetric_eig(Array2::zeros((1, 1)), true, f64::default_epsilon()).unwrap();
+        symmetric_eig(Array2::zeros((1, 1)), true, f64::EPSILON).unwrap();
         assert!(matches!(
-            symmetric_eig(Array2::zeros((3, 1)), true, f64::default_epsilon()),
+            symmetric_eig(Array2::zeros((3, 1)), true, f64::EPSILON),
             Err(LinalgError::NotSquare { rows: 3, cols: 1 })
         ));
         // Non-symmetric cases
-        symmetric_eig(array![[5., 4.], [3., 2.]], true, f64::default_epsilon()).unwrap();
-        symmetric_eig(array![[-2., 3.], [-3., -2.]], true, f64::default_epsilon()).unwrap();
+        symmetric_eig(array![[5., 4.], [3., 2.]], true, f64::EPSILON).unwrap();
+        symmetric_eig(array![[-2., 3.], [-3., -2.]], true, f64::EPSILON).unwrap();
     }
 }
