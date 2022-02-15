@@ -9,6 +9,8 @@
 //! feature, which forces all matrix multiplications to rely on a BLAS backend. This leads to
 //! linker errors if no BLAS backend is specified.
 
+#![allow(clippy::many_single_char_names)]
+
 pub mod cholesky;
 pub mod eigh;
 mod givens;
