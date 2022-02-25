@@ -14,6 +14,7 @@
 pub mod cholesky;
 pub mod eigh;
 mod givens;
+mod index;
 mod reflection;
 pub mod triangular;
 pub mod tridiagonal;
