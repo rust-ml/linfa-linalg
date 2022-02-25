@@ -1,12 +1,10 @@
 //! Eigendecomposition for symmetric square matrices
 
-use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2};
+use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
-use crate::{
-    check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Float, Result,
-};
+use crate::{check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Result};
 
-fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
+fn symmetric_eig<A: NdFloat, S: DataMut<Elem = A>>(
     mut matrix: ArrayBase<S, Ix2>,
     eigenvectors: bool,
     eps: A,
@@ -118,7 +116,7 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
     Ok((diag, q_mat))
 }
 
-fn delimit_subproblem<A: Float>(
+fn delimit_subproblem<A: NdFloat>(
     diag: &Array1<A>,
     off_diag: &mut Array1<A>,
     end: usize,
@@ -159,7 +157,7 @@ fn delimit_subproblem<A: Float>(
 /// The inputs are interpreted as the 2x2 matrix:
 ///     tmm  tmn
 ///     tmn  tnn
-fn wilkinson_shift<A: Float>(tmm: A, tnn: A, tmn: A) -> A {
+fn wilkinson_shift<A: NdFloat>(tmm: A, tnn: A, tmn: A) -> A {
     if !tmn.is_zero() {
         let tmn_sq = tmn * tmn;
         let d = (tmm - tnn) * A::from(0.5).unwrap();
@@ -169,7 +167,7 @@ fn wilkinson_shift<A: Float>(tmm: A, tnn: A, tmn: A) -> A {
     }
 }
 
-fn compute_2x2_eigvals<A: Float>(h00: A, h10: A, h01: A, h11: A) -> Option<(A, A)> {
+fn compute_2x2_eigvals<A: NdFloat>(h00: A, h10: A, h01: A, h11: A) -> Option<(A, A)> {
     let val = (h00 - h11) * A::from(0.5f64).unwrap();
     let discr = h10 * h01 + val * val;
     if discr >= A::zero() {
@@ -190,7 +188,7 @@ pub trait EighInto: Sized {
     fn eigh_into(self) -> Result<(Self::EigVal, Self::EigVec)>;
 }
 
-impl<A: Float, S: DataMut<Elem = A>> EighInto for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: DataMut<Elem = A>> EighInto for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
     type EigVec = Array2<A>;
 
@@ -209,7 +207,7 @@ pub trait Eigh {
     fn eigh(&self) -> Result<(Self::EigVal, Self::EigVec)>;
 }
 
-impl<A: Float, S: Data<Elem = A>> Eigh for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: Data<Elem = A>> Eigh for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
     type EigVec = Array2<A>;
 
@@ -226,7 +224,7 @@ pub trait EigValshInto {
     fn eigvalsh_into(self) -> Result<Self::EigVal>;
 }
 
-impl<A: Float, S: DataMut<Elem = A>> EigValshInto for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: DataMut<Elem = A>> EigValshInto for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
 
     fn eigvalsh_into(self) -> Result<Self::EigVal> {
@@ -242,7 +240,7 @@ pub trait EigValsh {
     fn eigvalsh(&self) -> Result<Self::EigVal>;
 }
 
-impl<A: Float, S: Data<Elem = A>> EigValsh for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: Data<Elem = A>> EigValsh for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
 
     fn eigvalsh(&self) -> Result<Self::EigVal> {

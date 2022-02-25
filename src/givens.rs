@@ -1,6 +1,6 @@
-use ndarray::{ArrayBase, DataMut, Ix2};
+use ndarray::{ArrayBase, DataMut, Ix2, NdFloat};
 
-use crate::{Float, LinalgError, Result};
+use crate::{LinalgError, Result};
 
 /// A Givens Rotation
 #[derive(Debug, Clone)]
@@ -9,7 +9,7 @@ pub struct GivensRotation<A> {
     s: A,
 }
 
-impl<A: Float> GivensRotation<A> {
+impl<A: NdFloat> GivensRotation<A> {
     /// Computes rotation `R` such that the `y` component of `R * [x, y].t` is 0
     ///
     /// Returns `None` if `y` is 0 (no rotation needed), otherwise return the rotation and the norm

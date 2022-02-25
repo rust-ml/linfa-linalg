@@ -1,6 +1,4 @@
-use ndarray::{ArrayBase, Data, DataMut, Ix1, Ix2};
-
-use crate::Float;
+use ndarray::{ArrayBase, Data, DataMut, Ix1, Ix2, NdFloat};
 
 /// Reflection with respect to a plane
 pub struct Reflection<A, D: Data<Elem = A>> {
@@ -18,7 +16,7 @@ impl<A, D: Data<Elem = A>> Reflection<A, D> {
     }
 }
 
-impl<A: Float, D: Data<Elem = A>> Reflection<A, D> {
+impl<A: NdFloat, D: Data<Elem = A>> Reflection<A, D> {
     /// Apply reflection to the columns of `rhs`
     pub fn reflect_col<M: DataMut<Elem = A>>(&self, rhs: &mut ArrayBase<M, Ix2>) {
         for i in 0..rhs.ncols() {

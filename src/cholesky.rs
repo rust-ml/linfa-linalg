@@ -1,8 +1,8 @@
 //! Cholesky decomposition of positive definite matrices
 
-use crate::{triangular::IntoTriangular, Float, LinalgError, Result};
+use crate::{triangular::IntoTriangular, LinalgError, Result};
 
-use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
+use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
 /// Cholesky decomposition of a positive definite matrix
 pub trait CholeskyInplace {
@@ -37,7 +37,7 @@ pub trait CholeskyInplace {
 
 impl<A, S> CholeskyInplace for ArrayBase<S, Ix2>
 where
-    A: Float,
+    A: NdFloat,
     S: DataMut<Elem = A>,
 {
     fn cholesky_inplace_dirty(&mut self) -> Result<&mut Self> {
@@ -55,7 +55,7 @@ where
                     for i in 0..k {
                         s += *self.uget((k, i)) * *self.uget((j, i));
                     }
-                    s = (*self.uget((j, k)) - s) / self.uget((k, k));
+                    s = (*self.uget((j, k)) - s) / *self.uget((k, k));
                     *self.uget_mut((j, k)) = s;
                 }
                 d += s * s;
@@ -94,7 +94,7 @@ pub trait Cholesky {
 
 impl<A, S> Cholesky for ArrayBase<S, Ix2>
 where
-    A: Float,
+    A: NdFloat,
     S: Data<Elem = A>,
 {
     type Output = Array2<A>;

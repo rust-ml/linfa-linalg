@@ -2,17 +2,17 @@
 
 use ndarray::{
     linalg::{general_mat_mul, general_mat_vec_mul},
-    s, Array1, Array2, ArrayBase, Axis, DataMut, Ix1, Ix2,
+    s, Array1, Array2, ArrayBase, Axis, DataMut, Ix1, Ix2, NdFloat,
 };
 
-use crate::{check_square, Float, LinalgError, Result};
+use crate::{check_square, LinalgError, Result};
 use crate::{reflection::Reflection, triangular::IntoTriangular};
 
 /// Performs Householder reflection on a single column
 ///
 /// Returns what would be the first component of column after reflection if a reflection was
 /// actually performed.
-fn householder_reflection_axis_mut<A: Float, S: DataMut<Elem = A>>(
+fn householder_reflection_axis_mut<A: NdFloat, S: DataMut<Elem = A>>(
     col: &mut ArrayBase<S, Ix1>,
 ) -> Option<A> {
     let reflection_norm_sq = col.dot(col);
@@ -45,7 +45,7 @@ pub trait SymmetricTridiagonal {
 
 impl<S, A> SymmetricTridiagonal for ArrayBase<S, Ix2>
 where
-    A: Float,
+    A: NdFloat,
     S: DataMut<Elem = A>,
 {
     type Decomp = TridiagonalDecomp<A, S>;
@@ -98,7 +98,7 @@ pub struct TridiagonalDecomp<A, S: DataMut<Elem = A>> {
     off_diagonal: Array1<A>,
 }
 
-impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
+impl<A: NdFloat, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
     /// Construct the orthogonal matrix `Q`, where `Q * T * Q.t` results in the original matrix
     pub fn generate_q(&self) -> Array2<A> {
         let n = self.diag_matrix.nrows();
