@@ -5,8 +5,9 @@ use ndarray::{
     s, Array1, Array2, ArrayBase, Axis, DataMut, Ix1, Ix2, NdFloat,
 };
 
-use crate::{check_square, LinalgError, Result};
-use crate::{reflection::Reflection, triangular::IntoTriangular};
+use crate::{
+    check_square, index::*, reflection::Reflection, triangular::IntoTriangular, LinalgError, Result,
+};
 
 /// Performs Householder reflection on a single column
 ///
@@ -110,7 +111,7 @@ impl<A: NdFloat, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
 
             let mut q_rows = q_matrix.slice_mut(s![i + 1.., i..]);
             refl.reflect_col(&mut q_rows);
-            q_rows *= self.off_diagonal[i].signum();
+            q_rows *= self.off_diagonal.at(i).signum();
         }
 
         q_matrix
@@ -131,8 +132,10 @@ impl<A: NdFloat, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
         self.diag_matrix.lower_triangular_inplace().unwrap();
         for (i, off) in self.off_diagonal.into_iter().enumerate() {
             let off = off.abs();
-            self.diag_matrix[(i + 1, i)] = off;
-            self.diag_matrix[(i, i + 1)] = off;
+            let off1 = self.diag_matrix.atm((i + 1, i));
+            *off1 = off;
+            let off2 = self.diag_matrix.atm((i, i + 1));
+            *off2 = off;
         }
         self.diag_matrix
     }

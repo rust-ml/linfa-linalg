@@ -2,7 +2,9 @@
 
 use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
-use crate::{check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Result};
+use crate::{
+    check_square, givens::GivensRotation, index::*, tridiagonal::SymmetricTridiagonal, Result,
+};
 
 fn symmetric_eig<A: NdFloat, S: DataMut<Elem = A>>(
     mut matrix: ArrayBase<S, Ix2>,
@@ -42,33 +44,34 @@ fn symmetric_eig<A: NdFloat, S: DataMut<Elem = A>>(
             let m = end - 1;
             let n = end;
 
-            let mut x = diag[start] - wilkinson_shift(diag[m], diag[n], off_diag[m]);
-            let mut y = off_diag[start];
+            let mut x =
+                *diag.at(start) - wilkinson_shift(*diag.at(m), *diag.at(n), *off_diag.at(m));
+            let mut y = *off_diag.at(start);
 
             for i in start..n {
                 let j = i + 1;
 
                 if let Some((rot, norm)) = GivensRotation::cancel_y(x, y) {
                     if i > start {
-                        off_diag[i - 1] = norm;
+                        *off_diag.atm(i - 1) = norm;
                     }
 
-                    let mii = diag[i];
-                    let mjj = diag[j];
-                    let mij = off_diag[i];
+                    let mii = *diag.at(i);
+                    let mjj = *diag.at(j);
+                    let mij = *off_diag.at(i);
                     let cc = rot.c() * rot.c();
                     let ss = rot.s() * rot.s();
                     let cs = rot.c() * rot.s();
                     let b = cs * mij * A::from(2.0f64).unwrap();
 
-                    diag[i] = cc * mii + ss * mjj - b;
-                    diag[j] = ss * mii + cc * mjj + b;
-                    off_diag[i] = cs * (mii - mjj) + mij * (cc - ss);
+                    *diag.atm(i) = cc * mii + ss * mjj - b;
+                    *diag.atm(j) = ss * mii + cc * mjj + b;
+                    *off_diag.atm(i) = cs * (mii - mjj) + mij * (cc - ss);
 
                     if i != n - 1 {
-                        x = off_diag[i];
-                        y = -rot.s() * off_diag[i + 1];
-                        off_diag[i + 1] *= rot.c();
+                        x = *off_diag.at(i);
+                        y = -rot.s() * *off_diag.at(i + 1);
+                        *off_diag.atm(i + 1) *= rot.c();
                     }
 
                     if let Some(q) = &mut q_mat {
@@ -82,21 +85,21 @@ fn symmetric_eig<A: NdFloat, S: DataMut<Elem = A>>(
                 }
             }
 
-            if off_diag[m].abs() <= eps * (diag[m].abs() + diag[n].abs()) {
+            if off_diag.at(m).abs() <= eps * (diag.at(m).abs() + diag.at(n).abs()) {
                 end -= 1;
             }
         } else if subdim == 2 {
             let eigvals = compute_2x2_eigvals(
-                diag[start],
-                off_diag[start],
-                off_diag[start],
-                diag[start + 1],
+                *diag.at(start),
+                *off_diag.at(start),
+                *off_diag.at(start),
+                *diag.at(start + 1),
             )
             .unwrap(); // XXX not sure when this unwrap panics
-            let basis = (eigvals.0 - diag[start + 1], off_diag[start]);
+            let basis = (eigvals.0 - *diag.at(start + 1), *off_diag.at(start));
 
-            diag[start] = eigvals.0;
-            diag[start + 1] = eigvals.1;
+            *diag.atm(start) = eigvals.0;
+            *diag.atm(start + 1) = eigvals.1;
 
             if let (Some(q), Some((rot, _))) =
                 (&mut q_mat, GivensRotation::try_new(basis.0, basis.1, eps))
@@ -126,7 +129,7 @@ fn delimit_subproblem<A: NdFloat>(
 
     while n > 0 {
         let m = n - 1;
-        if off_diag[m].abs() > eps * (diag[n].abs() + diag[m].abs()) {
+        if off_diag.at(m).abs() > eps * (diag.at(n).abs() + diag.at(m).abs()) {
             break;
         }
         n -= 1;
@@ -139,10 +142,10 @@ fn delimit_subproblem<A: NdFloat>(
     let mut new_start = n - 1;
     while new_start > 0 {
         let m = new_start - 1;
-        if off_diag[m].is_zero()
-            || off_diag[m].abs() <= eps * (diag[new_start].abs() + diag[m].abs())
+        if off_diag.at(m).is_zero()
+            || off_diag.at(m).abs() <= eps * (diag.at(new_start).abs() + diag.at(m).abs())
         {
-            off_diag[m] = A::zero();
+            *off_diag.atm(m) = A::zero();
             break;
         }
         new_start -= 1;

@@ -1,6 +1,6 @@
 //! Traits for creating and manipulating triangular matrices
 
-use crate::{check_square, Result};
+use crate::{check_square, index::UncheckedIndexMut, Result};
 
 use ndarray::{ArrayBase, DataMut, Ix2};
 use num_traits::Zero;
@@ -45,7 +45,7 @@ where
         let n = check_square(self)?;
         for i in 0..n {
             for j in 0..i {
-                unsafe { *self.uget_mut((i, j)) = A::zero() };
+                *self.atm((i, j)) = A::zero();
             }
         }
         Ok(self)
@@ -55,7 +55,7 @@ where
         let n = check_square(self)?;
         for i in 0..n {
             for j in i + 1..n {
-                unsafe { *self.uget_mut((i, j)) = A::zero() };
+                *self.atm((i, j)) = A::zero();
             }
         }
         Ok(self)

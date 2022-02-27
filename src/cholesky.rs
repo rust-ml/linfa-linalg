@@ -1,6 +1,6 @@
 //! Cholesky decomposition of positive definite matrices
 
-use crate::{triangular::IntoTriangular, LinalgError, Result};
+use crate::{index::*, triangular::IntoTriangular, LinalgError, Result};
 
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
@@ -51,22 +51,20 @@ where
             let mut d = A::zero();
             for k in 0..j {
                 let mut s = A::zero();
-                unsafe {
-                    for i in 0..k {
-                        s += *self.uget((k, i)) * *self.uget((j, i));
-                    }
-                    s = (*self.uget((j, k)) - s) / *self.uget((k, k));
-                    *self.uget_mut((j, k)) = s;
+                for i in 0..k {
+                    s += *self.at((k, i)) * *self.at((j, i));
                 }
+                s = (*self.at((j, k)) - s) / *self.at((k, k));
+                *self.atm((j, k)) = s;
                 d += s * s;
             }
-            unsafe { d = *self.uget((j, j)) - d };
+            d = *self.at((j, j)) - d;
 
             if d < A::zero() {
                 return Err(LinalgError::NotPositiveDefinite);
             }
 
-            unsafe { *self.uget_mut((j, j)) = d.sqrt() };
+            *self.atm((j, j)) = d.sqrt();
         }
         Ok(self)
     }
