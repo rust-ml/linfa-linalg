@@ -34,7 +34,7 @@ fn householder_reflection_axis_mut<A: NdFloat, S: DataMut<Elem = A>>(
     }
 }
 
-/// Tridiagonal decomposition of a symmetric matrix
+/// Tridiagonal decomposition of a non-empty symmetric matrix
 pub trait SymmetricTridiagonal {
     type Decomp;
 

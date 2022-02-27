@@ -12,6 +12,17 @@ fn symmetric_eig<A: NdFloat, S: DataMut<Elem = A>>(
     eps: A,
 ) -> Result<(Array1<A>, Option<Array2<A>>)> {
     let dim = check_square(&matrix)?;
+    if dim < 1 {
+        return Ok((
+            Array1::zeros(0),
+            if eigenvectors {
+                Some(Array2::zeros((0, 0)))
+            } else {
+                None
+            },
+        ));
+    }
+
     let amax = matrix
         .iter()
         .map(|f| f.abs())
@@ -333,10 +344,15 @@ mod tests {
 
     #[test]
     fn corner() {
-        assert!(matches!(
-            symmetric_eig(Array2::zeros((0, 0)), true, f64::EPSILON),
-            Err(LinalgError::EmptyMatrix)
-        ));
+        assert_eq!(
+            symmetric_eig(Array2::zeros((0, 0)), false, f64::EPSILON).unwrap(),
+            (Array1::zeros(0), None)
+        );
+        assert_eq!(
+            symmetric_eig(Array2::zeros((0, 0)), true, f64::EPSILON).unwrap(),
+            (Array1::zeros(0), Some(Array2::zeros((0, 0))))
+        );
+
         symmetric_eig(Array2::zeros((1, 1)), true, f64::EPSILON).unwrap();
         assert!(matches!(
             symmetric_eig(Array2::zeros((3, 1)), true, f64::EPSILON),
