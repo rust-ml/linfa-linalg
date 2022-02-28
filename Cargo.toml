@@ -10,12 +10,11 @@ keywords = ["ndarray", "matrix"]
 categories = ["algorithms", "mathematics", "science"]
 
 [dependencies]
-ndarray = { version = "0.15", default-features = false, features = ["approx"] }
+ndarray = { version = "0.15", features = ["approx"] }
 num-traits = "0.2.0"
 thiserror = "1"
 
 [dev-dependencies]
 approx = "0.4"
-ndarray-rand = "0.14"
-rand_isaac = "0.3"
-rand = "0.8"
+proptest = "1.0"
+proptest-derive = "0.2.0"

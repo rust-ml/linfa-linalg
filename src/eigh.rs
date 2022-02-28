@@ -1,17 +1,28 @@
 //! Eigendecomposition for symmetric square matrices
 
-use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2};
+use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
 use crate::{
-    check_square, givens::GivensRotation, tridiagonal::SymmetricTridiagonal, Float, Result,
+    check_square, givens::GivensRotation, index::*, tridiagonal::SymmetricTridiagonal, Result,
 };
 
-fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
+fn symmetric_eig<A: NdFloat, S: DataMut<Elem = A>>(
     mut matrix: ArrayBase<S, Ix2>,
     eigenvectors: bool,
     eps: A,
 ) -> Result<(Array1<A>, Option<Array2<A>>)> {
     let dim = check_square(&matrix)?;
+    if dim < 1 {
+        return Ok((
+            Array1::zeros(0),
+            if eigenvectors {
+                Some(Array2::zeros((0, 0)))
+            } else {
+                None
+            },
+        ));
+    }
+
     let amax = matrix
         .iter()
         .map(|f| f.abs())
@@ -44,33 +55,34 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
             let m = end - 1;
             let n = end;
 
-            let mut x = diag[start] - wilkinson_shift(diag[m], diag[n], off_diag[m]);
-            let mut y = off_diag[start];
+            let mut x =
+                *diag.at(start) - wilkinson_shift(*diag.at(m), *diag.at(n), *off_diag.at(m));
+            let mut y = *off_diag.at(start);
 
             for i in start..n {
                 let j = i + 1;
 
                 if let Some((rot, norm)) = GivensRotation::cancel_y(x, y) {
                     if i > start {
-                        off_diag[i - 1] = norm;
+                        *off_diag.atm(i - 1) = norm;
                     }
 
-                    let mii = diag[i];
-                    let mjj = diag[j];
-                    let mij = off_diag[i];
+                    let mii = *diag.at(i);
+                    let mjj = *diag.at(j);
+                    let mij = *off_diag.at(i);
                     let cc = rot.c() * rot.c();
                     let ss = rot.s() * rot.s();
                     let cs = rot.c() * rot.s();
                     let b = cs * mij * A::from(2.0f64).unwrap();
 
-                    diag[i] = cc * mii + ss * mjj - b;
-                    diag[j] = ss * mii + cc * mjj + b;
-                    off_diag[i] = cs * (mii - mjj) + mij * (cc - ss);
+                    *diag.atm(i) = cc * mii + ss * mjj - b;
+                    *diag.atm(j) = ss * mii + cc * mjj + b;
+                    *off_diag.atm(i) = cs * (mii - mjj) + mij * (cc - ss);
 
                     if i != n - 1 {
-                        x = off_diag[i];
-                        y = -rot.s() * off_diag[i + 1];
-                        off_diag[i + 1] *= rot.c();
+                        x = *off_diag.at(i);
+                        y = -rot.s() * *off_diag.at(i + 1);
+                        *off_diag.atm(i + 1) *= rot.c();
                     }
 
                     if let Some(q) = &mut q_mat {
@@ -84,21 +96,21 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
                 }
             }
 
-            if off_diag[m].abs() <= eps * (diag[m].abs() + diag[n].abs()) {
+            if off_diag.at(m).abs() <= eps * (diag.at(m).abs() + diag.at(n).abs()) {
                 end -= 1;
             }
         } else if subdim == 2 {
             let eigvals = compute_2x2_eigvals(
-                diag[start],
-                off_diag[start],
-                off_diag[start],
-                diag[start + 1],
+                *diag.at(start),
+                *off_diag.at(start),
+                *off_diag.at(start),
+                *diag.at(start + 1),
             )
             .unwrap(); // XXX not sure when this unwrap panics
-            let basis = (eigvals.0 - diag[start + 1], off_diag[start]);
+            let basis = (eigvals.0 - *diag.at(start + 1), *off_diag.at(start));
 
-            diag[start] = eigvals.0;
-            diag[start + 1] = eigvals.1;
+            *diag.atm(start) = eigvals.0;
+            *diag.atm(start + 1) = eigvals.1;
 
             if let (Some(q), Some((rot, _))) =
                 (&mut q_mat, GivensRotation::try_new(basis.0, basis.1, eps))
@@ -118,7 +130,7 @@ fn symmetric_eig<A: Float, S: DataMut<Elem = A>>(
     Ok((diag, q_mat))
 }
 
-fn delimit_subproblem<A: Float>(
+fn delimit_subproblem<A: NdFloat>(
     diag: &Array1<A>,
     off_diag: &mut Array1<A>,
     end: usize,
@@ -128,7 +140,7 @@ fn delimit_subproblem<A: Float>(
 
     while n > 0 {
         let m = n - 1;
-        if off_diag[m].abs() > eps * (diag[n].abs() + diag[m].abs()) {
+        if off_diag.at(m).abs() > eps * (diag.at(n).abs() + diag.at(m).abs()) {
             break;
         }
         n -= 1;
@@ -141,10 +153,10 @@ fn delimit_subproblem<A: Float>(
     let mut new_start = n - 1;
     while new_start > 0 {
         let m = new_start - 1;
-        if off_diag[m].is_zero()
-            || off_diag[m].abs() <= eps * (diag[new_start].abs() + diag[m].abs())
+        if off_diag.at(m).is_zero()
+            || off_diag.at(m).abs() <= eps * (diag.at(new_start).abs() + diag.at(m).abs())
         {
-            off_diag[m] = A::zero();
+            *off_diag.atm(m) = A::zero();
             break;
         }
         new_start -= 1;
@@ -159,7 +171,7 @@ fn delimit_subproblem<A: Float>(
 /// The inputs are interpreted as the 2x2 matrix:
 ///     tmm  tmn
 ///     tmn  tnn
-fn wilkinson_shift<A: Float>(tmm: A, tnn: A, tmn: A) -> A {
+fn wilkinson_shift<A: NdFloat>(tmm: A, tnn: A, tmn: A) -> A {
     if !tmn.is_zero() {
         let tmn_sq = tmn * tmn;
         let d = (tmm - tnn) * A::from(0.5).unwrap();
@@ -169,7 +181,7 @@ fn wilkinson_shift<A: Float>(tmm: A, tnn: A, tmn: A) -> A {
     }
 }
 
-fn compute_2x2_eigvals<A: Float>(h00: A, h10: A, h01: A, h11: A) -> Option<(A, A)> {
+fn compute_2x2_eigvals<A: NdFloat>(h00: A, h10: A, h01: A, h11: A) -> Option<(A, A)> {
     let val = (h00 - h11) * A::from(0.5f64).unwrap();
     let discr = h10 * h01 + val * val;
     if discr >= A::zero() {
@@ -190,7 +202,7 @@ pub trait EighInto: Sized {
     fn eigh_into(self) -> Result<(Self::EigVal, Self::EigVec)>;
 }
 
-impl<A: Float, S: DataMut<Elem = A>> EighInto for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: DataMut<Elem = A>> EighInto for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
     type EigVec = Array2<A>;
 
@@ -209,7 +221,7 @@ pub trait Eigh {
     fn eigh(&self) -> Result<(Self::EigVal, Self::EigVec)>;
 }
 
-impl<A: Float, S: Data<Elem = A>> Eigh for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: Data<Elem = A>> Eigh for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
     type EigVec = Array2<A>;
 
@@ -226,7 +238,7 @@ pub trait EigValshInto {
     fn eigvalsh_into(self) -> Result<Self::EigVal>;
 }
 
-impl<A: Float, S: DataMut<Elem = A>> EigValshInto for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: DataMut<Elem = A>> EigValshInto for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
 
     fn eigvalsh_into(self) -> Result<Self::EigVal> {
@@ -242,7 +254,7 @@ pub trait EigValsh {
     fn eigvalsh(&self) -> Result<Self::EigVal>;
 }
 
-impl<A: Float, S: Data<Elem = A>> EigValsh for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: Data<Elem = A>> EigValsh for ArrayBase<S, Ix2> {
     type EigVal = Array1<A>;
 
     fn eigvalsh(&self) -> Result<Self::EigVal> {
@@ -332,11 +344,17 @@ mod tests {
 
     #[test]
     fn corner() {
-        assert!(matches!(
-            symmetric_eig(Array2::zeros((0, 0)), true, f64::EPSILON),
-            Err(LinalgError::EmptyMatrix)
-        ));
+        assert_eq!(
+            symmetric_eig(Array2::zeros((0, 0)), false, f64::EPSILON).unwrap(),
+            (Array1::zeros(0), None)
+        );
+        assert_eq!(
+            symmetric_eig(Array2::zeros((0, 0)), true, f64::EPSILON).unwrap(),
+            (Array1::zeros(0), Some(Array2::zeros((0, 0))))
+        );
+
         symmetric_eig(Array2::zeros((1, 1)), true, f64::EPSILON).unwrap();
+        symmetric_eig(Array2::zeros((4, 4)), true, f64::EPSILON).unwrap();
         assert!(matches!(
             symmetric_eig(Array2::zeros((3, 1)), true, f64::EPSILON),
             Err(LinalgError::NotSquare { rows: 3, cols: 1 })

@@ -1,8 +1,8 @@
 //! Cholesky decomposition of positive definite matrices
 
-use crate::{triangular::IntoTriangular, Float, LinalgError, Result};
+use crate::{check_square, index::*, triangular::IntoTriangular, LinalgError, Result};
 
-use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
+use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
 /// Cholesky decomposition of a positive definite matrix
 pub trait CholeskyInplace {
@@ -37,36 +37,30 @@ pub trait CholeskyInplace {
 
 impl<A, S> CholeskyInplace for ArrayBase<S, Ix2>
 where
-    A: Float,
+    A: NdFloat,
     S: DataMut<Elem = A>,
 {
     fn cholesky_inplace_dirty(&mut self) -> Result<&mut Self> {
-        let m = self.nrows();
-        let n = self.ncols();
-        if m != n {
-            return Err(LinalgError::NotSquare { rows: m, cols: n });
-        }
+        let n = check_square(self)?;
 
         for j in 0..n {
             let mut d = A::zero();
             for k in 0..j {
                 let mut s = A::zero();
-                unsafe {
-                    for i in 0..k {
-                        s += *self.uget((k, i)) * *self.uget((j, i));
-                    }
-                    s = (*self.uget((j, k)) - s) / self.uget((k, k));
-                    *self.uget_mut((j, k)) = s;
+                for i in 0..k {
+                    s += *self.at((k, i)) * *self.at((j, i));
                 }
+                s = (*self.at((j, k)) - s) / *self.at((k, k));
+                *self.atm((j, k)) = s;
                 d += s * s;
             }
-            unsafe { d = *self.uget((j, j)) - d };
+            d = *self.at((j, j)) - d;
 
             if d < A::zero() {
                 return Err(LinalgError::NotPositiveDefinite);
             }
 
-            unsafe { *self.uget_mut((j, j)) = d.sqrt() };
+            *self.atm((j, j)) = d.sqrt();
         }
         Ok(self)
     }
@@ -94,7 +88,7 @@ pub trait Cholesky {
 
 impl<A, S> Cholesky for ArrayBase<S, Ix2>
 where
-    A: Float,
+    A: NdFloat,
     S: Data<Elem = A>,
 {
     type Output = Array2<A>;

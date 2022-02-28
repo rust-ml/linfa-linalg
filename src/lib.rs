@@ -14,12 +14,12 @@
 pub mod cholesky;
 pub mod eigh;
 mod givens;
+mod index;
 mod reflection;
 pub mod triangular;
 pub mod tridiagonal;
 
-use ndarray::{ArrayBase, Ix2, RawData, ScalarOperand, ShapeError};
-use num_traits::{NumAssignOps, NumRef};
+use ndarray::{ArrayBase, Ix2, RawData, ShapeError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -52,9 +52,3 @@ pub(crate) fn check_square<S: RawData>(arr: &ArrayBase<S, Ix2>) -> Result<usize>
         Ok(n)
     }
 }
-
-/// Custom Float trait aggregating all of this crate's required operations
-pub trait Float: 'static + num_traits::Float + NumAssignOps + ScalarOperand + NumRef {}
-
-impl Float for f32 {}
-impl Float for f64 {}

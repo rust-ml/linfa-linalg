@@ -1,6 +1,6 @@
-use ndarray::{ArrayBase, DataMut, Ix2};
+use ndarray::{ArrayBase, DataMut, Ix2, NdFloat};
 
-use crate::{Float, LinalgError, Result};
+use crate::{index::*, LinalgError, Result};
 
 /// A Givens Rotation
 #[derive(Debug, Clone)]
@@ -9,7 +9,7 @@ pub struct GivensRotation<A> {
     s: A,
 }
 
-impl<A: Float> GivensRotation<A> {
+impl<A: NdFloat> GivensRotation<A> {
     /// Computes rotation `R` such that the `y` component of `R * [x, y].t` is 0
     ///
     /// Returns `None` if `y` is 0 (no rotation needed), otherwise return the rotation and the norm
@@ -65,10 +65,10 @@ impl<A: Float> GivensRotation<A> {
         let s = self.s;
 
         for j in 0..lhs.nrows() {
-            let a = *lhs.get((j, 0)).unwrap();
-            let b = *lhs.get((j, 1)).unwrap();
-            *lhs.get_mut((j, 0)).unwrap() = a * c + s * b;
-            *lhs.get_mut((j, 1)).unwrap() = -s * a + b * c;
+            let a = *lhs.at((j, 0));
+            let b = *lhs.at((j, 1));
+            *lhs.atm((j, 0)) = a * c + s * b;
+            *lhs.atm((j, 1)) = -s * a + b * c;
         }
 
         Ok(())

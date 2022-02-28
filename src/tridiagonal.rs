@@ -2,17 +2,18 @@
 
 use ndarray::{
     linalg::{general_mat_mul, general_mat_vec_mul},
-    s, Array1, Array2, ArrayBase, Axis, DataMut, Ix1, Ix2,
+    s, Array1, Array2, ArrayBase, Axis, DataMut, Ix1, Ix2, NdFloat,
 };
 
-use crate::{check_square, Float, LinalgError, Result};
-use crate::{reflection::Reflection, triangular::IntoTriangular};
+use crate::{
+    check_square, index::*, reflection::Reflection, triangular::IntoTriangular, LinalgError, Result,
+};
 
 /// Performs Householder reflection on a single column
 ///
 /// Returns what would be the first component of column after reflection if a reflection was
 /// actually performed.
-fn householder_reflection_axis_mut<A: Float, S: DataMut<Elem = A>>(
+fn householder_reflection_axis_mut<A: NdFloat, S: DataMut<Elem = A>>(
     col: &mut ArrayBase<S, Ix1>,
 ) -> Option<A> {
     let reflection_norm_sq = col.dot(col);
@@ -33,7 +34,7 @@ fn householder_reflection_axis_mut<A: Float, S: DataMut<Elem = A>>(
     }
 }
 
-/// Tridiagonal decomposition of a symmetric matrix
+/// Tridiagonal decomposition of a non-empty symmetric matrix
 pub trait SymmetricTridiagonal {
     type Decomp;
 
@@ -45,7 +46,7 @@ pub trait SymmetricTridiagonal {
 
 impl<S, A> SymmetricTridiagonal for ArrayBase<S, Ix2>
 where
-    A: Float,
+    A: NdFloat,
     S: DataMut<Elem = A>,
 {
     type Decomp = TridiagonalDecomp<A, S>;
@@ -98,7 +99,7 @@ pub struct TridiagonalDecomp<A, S: DataMut<Elem = A>> {
     off_diagonal: Array1<A>,
 }
 
-impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
+impl<A: NdFloat, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
     /// Construct the orthogonal matrix `Q`, where `Q * T * Q.t` results in the original matrix
     pub fn generate_q(&self) -> Array2<A> {
         let n = self.diag_matrix.nrows();
@@ -110,7 +111,7 @@ impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
 
             let mut q_rows = q_matrix.slice_mut(s![i + 1.., i..]);
             refl.reflect_col(&mut q_rows);
-            q_rows *= self.off_diagonal[i].signum();
+            q_rows *= self.off_diagonal.at(i).signum();
         }
 
         q_matrix
@@ -131,8 +132,10 @@ impl<A: Float, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
         self.diag_matrix.lower_triangular_inplace().unwrap();
         for (i, off) in self.off_diagonal.into_iter().enumerate() {
             let off = off.abs();
-            self.diag_matrix[(i + 1, i)] = off;
-            self.diag_matrix[(i, i + 1)] = off;
+            let off1 = self.diag_matrix.atm((i + 1, i));
+            *off1 = off;
+            let off2 = self.diag_matrix.atm((i, i + 1));
+            *off2 = off;
         }
         self.diag_matrix
     }
