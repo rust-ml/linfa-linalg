@@ -17,3 +17,4 @@ thiserror = "1"
 [dev-dependencies]
 approx = "0.4"
 proptest = "1.0"
+proptest-derive = "0.2.0"
