@@ -354,6 +354,7 @@ mod tests {
         );
 
         symmetric_eig(Array2::zeros((1, 1)), true, f64::EPSILON).unwrap();
+        symmetric_eig(Array2::zeros((4, 4)), true, f64::EPSILON).unwrap();
         assert!(matches!(
             symmetric_eig(Array2::zeros((3, 1)), true, f64::EPSILON),
             Err(LinalgError::NotSquare { rows: 3, cols: 1 })
