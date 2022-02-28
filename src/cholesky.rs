@@ -1,6 +1,6 @@
 //! Cholesky decomposition of positive definite matrices
 
-use crate::{index::*, triangular::IntoTriangular, LinalgError, Result};
+use crate::{check_square, index::*, triangular::IntoTriangular, LinalgError, Result};
 
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
@@ -41,11 +41,7 @@ where
     S: DataMut<Elem = A>,
 {
     fn cholesky_inplace_dirty(&mut self) -> Result<&mut Self> {
-        let m = self.nrows();
-        let n = self.ncols();
-        if m != n {
-            return Err(LinalgError::NotSquare { rows: m, cols: n });
-        }
+        let n = check_square(self)?;
 
         for j in 0..n {
             let mut d = A::zero();
