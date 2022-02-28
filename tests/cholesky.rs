@@ -42,6 +42,7 @@ fn run_cholesky_test(orig: Array2<f64>) {
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
     fn cholesky_test(arr in hpd_arr()) {
         run_cholesky_test(arr)

@@ -27,6 +27,7 @@ fn run_tridiagonal_test(arr: &Array2<f64>) {
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
     fn tridiagonal_test(arr in common::symm_arr()) {
         run_tridiagonal_test(&arr);
