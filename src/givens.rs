@@ -65,10 +65,12 @@ impl<A: NdFloat> GivensRotation<A> {
         let s = self.s;
 
         for j in 0..lhs.nrows() {
-            let a = *lhs.at((j, 0));
-            let b = *lhs.at((j, 1));
-            *lhs.atm((j, 0)) = a * c + s * b;
-            *lhs.atm((j, 1)) = -s * a + b * c;
+            unsafe {
+                let a = *lhs.at((j, 0));
+                let b = *lhs.at((j, 1));
+                *lhs.atm((j, 0)) = a * c + s * b;
+                *lhs.atm((j, 1)) = -s * a + b * c;
+            }
         }
 
         Ok(())

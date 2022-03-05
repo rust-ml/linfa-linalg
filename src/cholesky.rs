@@ -50,22 +50,24 @@ where
 
         for j in 0..n {
             let mut d = A::zero();
-            for k in 0..j {
-                let mut s = A::zero();
-                for i in 0..k {
-                    s += *self.at((k, i)) * *self.at((j, i));
+            unsafe {
+                for k in 0..j {
+                    let mut s = A::zero();
+                    for i in 0..k {
+                        s += *self.at((k, i)) * *self.at((j, i));
+                    }
+                    s = (*self.at((j, k)) - s) / *self.at((k, k));
+                    *self.atm((j, k)) = s;
+                    d += s * s;
                 }
-                s = (*self.at((j, k)) - s) / *self.at((k, k));
-                *self.atm((j, k)) = s;
-                d += s * s;
+                d = *self.at((j, j)) - d;
             }
-            d = *self.at((j, j)) - d;
 
             if d < A::zero() {
                 return Err(LinalgError::NotPositiveDefinite);
             }
 
-            *self.atm((j, j)) = d.sqrt();
+            unsafe { *self.atm((j, j)) = d.sqrt() };
         }
         Ok(self)
     }

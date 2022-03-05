@@ -7,26 +7,24 @@ use ndarray::{ArrayBase, Data, DataMut, Dimension, NdIndex};
 
 pub(crate) trait UncheckedIndex<I> {
     type Elem;
-    fn at(&self, index: I) -> &Self::Elem;
+    unsafe fn at(&self, index: I) -> &Self::Elem;
 }
 
 pub(crate) trait UncheckedIndexMut<I> {
     type Elem;
-    fn atm(&mut self, index: I) -> &mut Self::Elem;
+    unsafe fn atm(&mut self, index: I) -> &mut Self::Elem;
 }
 
 impl<A, S: Data<Elem = A>, D: Dimension, I: NdIndex<D>> UncheckedIndex<I> for ArrayBase<S, D> {
     type Elem = A;
 
-    fn at(&self, index: I) -> &Self::Elem {
+    unsafe fn at(&self, index: I) -> &Self::Elem {
         #[cfg(debug_assertions)]
         {
             self.get(index).unwrap()
         }
         #[cfg(not(debug_assertions))]
-        unsafe {
-            self.uget(index)
-        }
+        self.uget(index)
     }
 }
 
@@ -35,14 +33,12 @@ impl<A, S: DataMut<Elem = A>, D: Dimension, I: NdIndex<D>> UncheckedIndexMut<I>
 {
     type Elem = A;
 
-    fn atm(&mut self, index: I) -> &mut Self::Elem {
+    unsafe fn atm(&mut self, index: I) -> &mut Self::Elem {
         #[cfg(debug_assertions)]
         {
             self.get_mut(index).unwrap()
         }
         #[cfg(not(debug_assertions))]
-        unsafe {
-            self.uget_mut(index)
-        }
+        self.uget_mut(index)
     }
 }

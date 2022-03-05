@@ -39,13 +39,13 @@ where
         if uplo == UPLO::Upper {
             for i in 0..n {
                 for j in 0..i {
-                    *self.atm((i, j)) = A::zero();
+                    unsafe { *self.atm((i, j)) = A::zero() };
                 }
             }
         } else {
             for i in 0..n {
                 for j in i + 1..n {
-                    *self.atm((i, j)) = A::zero();
+                    unsafe { *self.atm((i, j)) = A::zero() };
                 }
             }
         }
@@ -69,7 +69,7 @@ where
             if uplo == UPLO::Upper {
                 for i in 0..n {
                     for j in 0..i {
-                        if !self.at((i, j)).is_zero() {
+                        if unsafe { !self.at((i, j)).is_zero() } {
                             return false;
                         }
                     }
@@ -77,7 +77,7 @@ where
             } else {
                 for i in 0..n {
                     for j in i + 1..n {
-                        if !self.at((i, j)).is_zero() {
+                        if unsafe { !self.at((i, j)).is_zero() } {
                             return false;
                         }
                     }
@@ -112,9 +112,12 @@ fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix
     // layouts of b
     for k in 0..cols {
         for i in row_iter_fn(rows) {
-            let diag = *a.at((i, i));
-            let coeff = *b.at((i, k)) / diag;
-            *b.atm((i, k)) = coeff;
+            let coeff;
+            unsafe {
+                let diag = *a.at((i, i));
+                coeff = *b.at((i, k)) / diag;
+                *b.atm((i, k)) = coeff;
+            }
 
             b.slice_mut(row_slice_fn(i, k))
                 .scaled_add(-coeff, &a.slice(row_slice_fn(i, i)));
