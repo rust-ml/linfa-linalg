@@ -6,7 +6,7 @@ use ndarray::prelude::*;
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
 
-pub const FLOAT_RANGE: RangeInclusive<f64> = -1000.0..=1000.0;
+pub const FLOAT_RANGE: RangeInclusive<f64> = -100.0..=100.0;
 pub const DIM_RANGE: RangeInclusive<usize> = 1..=10;
 
 #[derive(Debug, Arbitrary)]
