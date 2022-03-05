@@ -5,23 +5,20 @@ use crate::{check_square, index::*, LinalgError, Result};
 use ndarray::{s, ArrayBase, Data, DataMut, Ix2, NdFloat, SliceArg};
 use num_traits::Zero;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UPLO {
+    Upper,
+    Lower,
+}
+
 /// Transform square matrix into triangular matrix
 pub trait IntoTriangular {
-    /// Transform square matrix into a strict upper triangular matrix in place, zeroing out the
-    /// lower elements.
-    fn upper_triangular_inplace(&mut self) -> Result<&mut Self>;
-    /// Transform square matrix into a strict lower triangular matrix in place, zeroing out the
-    /// upper elements.
-    fn lower_triangular_inplace(&mut self) -> Result<&mut Self>;
+    /// Transform square matrix into a strict triangular matrix in place, zeroing out the other
+    /// elements.
+    fn triangular_inplace(&mut self, uplo: UPLO) -> Result<&mut Self>;
 
-    /// Transform square matrix into a strict upper triangular matrix, zeroing out the lower
-    /// elements.
-    fn into_upper_triangular(self) -> Result<Self>
-    where
-        Self: Sized;
-    /// Transform square matrix into a strict lower triangular matrix, zeroing out the upper
-    /// elements.
-    fn into_lower_triangular(self) -> Result<Self>
+    /// Transform square matrix into a strict triangular matrix, zeroing out the other elements.
+    fn into_triangular(self, uplo: UPLO) -> Result<Self>
     where
         Self: Sized;
 }
@@ -31,31 +28,24 @@ where
     A: Zero,
     S: DataMut<Elem = A>,
 {
-    fn into_upper_triangular(mut self) -> Result<Self> {
-        self.upper_triangular_inplace()?;
+    fn into_triangular(mut self, uplo: UPLO) -> Result<Self> {
+        self.triangular_inplace(uplo)?;
         Ok(self)
     }
 
-    fn into_lower_triangular(mut self) -> Result<Self> {
-        self.lower_triangular_inplace()?;
-        Ok(self)
-    }
-
-    fn upper_triangular_inplace(&mut self) -> Result<&mut Self> {
+    fn triangular_inplace(&mut self, uplo: UPLO) -> Result<&mut Self> {
         let n = check_square(self)?;
-        for i in 0..n {
-            for j in 0..i {
-                *self.atm((i, j)) = A::zero();
+        if uplo == UPLO::Upper {
+            for i in 0..n {
+                for j in 0..i {
+                    *self.atm((i, j)) = A::zero();
+                }
             }
-        }
-        Ok(self)
-    }
-
-    fn lower_triangular_inplace(&mut self) -> Result<&mut Self> {
-        let n = check_square(self)?;
-        for i in 0..n {
-            for j in i + 1..n {
-                *self.atm((i, j)) = A::zero();
+        } else {
+            for i in 0..n {
+                for j in i + 1..n {
+                    *self.atm((i, j)) = A::zero();
+                }
             }
         }
         Ok(self)
@@ -64,10 +54,8 @@ where
 
 /// Operations on triangular matrices
 pub trait Triangular {
-    /// Check if matrix is upper-triangular
-    fn is_upper_triangular(&self) -> bool;
-    /// Check if matrix is lower-triangular
-    fn is_lower_triangular(&self) -> bool;
+    /// Check if matrix is triangular
+    fn is_triangular(&self, uplo: UPLO) -> bool;
 }
 
 impl<A, S> Triangular for ArrayBase<S, Ix2>
@@ -75,27 +63,22 @@ where
     A: Zero,
     S: Data<Elem = A>,
 {
-    fn is_upper_triangular(&self) -> bool {
+    fn is_triangular(&self, uplo: UPLO) -> bool {
         if let Ok(n) = check_square(self) {
-            for i in 0..n {
-                for j in 0..i {
-                    if !self.at((i, j)).is_zero() {
-                        return false;
+            if uplo == UPLO::Upper {
+                for i in 0..n {
+                    for j in 0..i {
+                        if !self.at((i, j)).is_zero() {
+                            return false;
+                        }
                     }
                 }
-            }
-            true
-        } else {
-            false
-        }
-    }
-
-    fn is_lower_triangular(&self) -> bool {
-        if let Ok(n) = check_square(self) {
-            for i in 0..n {
-                for j in i + 1..n {
-                    if !self.at((i, j)).is_zero() {
-                        return false;
+            } else {
+                for i in 0..n {
+                    for j in i + 1..n {
+                        if !self.at((i, j)).is_zero() {
+                            return false;
+                        }
                     }
                 }
             }
@@ -141,8 +124,7 @@ fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix
 }
 
 pub trait SolveTriangularInplace<B> {
-    fn solve_upper_triangular_inplace<'a>(&self, b: &'a mut B) -> Result<&'a mut B>;
-    fn solve_lower_triangular_inplace<'a>(&self, b: &'a mut B) -> Result<&'a mut B>;
+    fn solve_triangular_inplace<'a>(&self, b: &'a mut B, uplo: UPLO) -> Result<&'a mut B>;
 }
 
 #[cfg(test)]
@@ -156,32 +138,32 @@ mod tests {
     #[test]
     fn corner_cases() {
         let empty = Array2::<f64>::zeros((0, 0));
-        assert!(empty.is_lower_triangular());
-        assert!(empty.is_upper_triangular());
-        assert_eq!(empty.clone().into_lower_triangular().unwrap(), empty);
+        assert!(empty.is_triangular(UPLO::Lower));
+        assert!(empty.is_triangular(UPLO::Upper));
+        assert_eq!(empty.clone().into_triangular(UPLO::Lower).unwrap(), empty);
 
         let one = array![[1]];
-        assert!(one.is_lower_triangular());
-        assert!(one.is_upper_triangular());
-        assert_eq!(one.clone().into_upper_triangular().unwrap(), one);
-        assert_eq!(one.clone().into_lower_triangular().unwrap(), one);
+        assert!(one.is_triangular(UPLO::Lower));
+        assert!(one.is_triangular(UPLO::Upper));
+        assert_eq!(one.clone().into_triangular(UPLO::Upper).unwrap(), one);
+        assert_eq!(one.clone().into_triangular(UPLO::Lower).unwrap(), one);
     }
 
     #[test]
     fn non_square() {
         let row = array![[1, 2, 3], [3, 4, 5]];
-        assert!(!row.is_lower_triangular());
-        assert!(!row.is_upper_triangular());
+        assert!(!row.is_triangular(UPLO::Lower));
+        assert!(!row.is_triangular(UPLO::Upper));
         assert!(matches!(
-            row.into_lower_triangular(),
+            row.into_triangular(UPLO::Lower),
             Err(LinalgError::NotSquare { rows: 2, cols: 3 })
         ));
 
         let col = array![[1, 2], [3, 5], [6, 8]];
-        assert!(!col.is_lower_triangular());
-        assert!(!col.is_upper_triangular());
+        assert!(!col.is_triangular(UPLO::Lower));
+        assert!(!col.is_triangular(UPLO::Upper));
         assert!(matches!(
-            col.into_upper_triangular(),
+            col.into_triangular(UPLO::Upper),
             Err(LinalgError::NotSquare { rows: 3, cols: 2 })
         ));
     }
@@ -189,17 +171,17 @@ mod tests {
     #[test]
     fn square() {
         let square = array![[1, 2, 3], [4, 5, 6], [7, 8, 9]];
-        assert!(!square.is_lower_triangular());
-        assert!(!square.is_upper_triangular());
+        assert!(!square.is_triangular(UPLO::Lower));
+        assert!(!square.is_triangular(UPLO::Upper));
 
-        let upper = square.clone().into_upper_triangular().unwrap();
+        let upper = square.clone().into_triangular(UPLO::Upper).unwrap();
         assert_eq!(upper, array![[1, 2, 3], [0, 5, 6], [0, 0, 9]]);
-        assert!(!upper.is_lower_triangular());
-        assert!(upper.is_upper_triangular());
+        assert!(!upper.is_triangular(UPLO::Lower));
+        assert!(upper.is_triangular(UPLO::Upper));
 
-        let lower = square.into_lower_triangular().unwrap();
-        assert!(lower.is_lower_triangular());
-        assert!(!lower.is_upper_triangular());
+        let lower = square.into_triangular(UPLO::Lower).unwrap();
+        assert!(lower.is_triangular(UPLO::Lower));
+        assert!(!lower.is_triangular(UPLO::Upper));
         assert_eq!(lower, array![[1, 0, 0], [4, 5, 0], [7, 8, 9]]);
     }
 }

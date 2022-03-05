@@ -1,6 +1,11 @@
 //! Cholesky decomposition of positive definite matrices
 
-use crate::{check_square, index::*, triangular::IntoTriangular, LinalgError, Result};
+use crate::{
+    check_square,
+    index::*,
+    triangular::{IntoTriangular, UPLO},
+    LinalgError, Result,
+};
 
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
@@ -67,7 +72,7 @@ where
 
     fn cholesky_inplace(&mut self) -> Result<&mut Self> {
         self.cholesky_inplace_dirty()?;
-        self.lower_triangular_inplace()?;
+        self.triangular_inplace(UPLO::Lower)?;
         Ok(self)
     }
 }
