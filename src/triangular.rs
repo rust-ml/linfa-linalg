@@ -1,8 +1,8 @@
 //! Traits for creating and manipulating triangular matrices
 
-use crate::{check_square, index::*, Result};
+use crate::{check_square, index::*, LinalgError, Result};
 
-use ndarray::{ArrayBase, Data, DataMut, Ix2};
+use ndarray::{s, ArrayBase, Data, DataMut, Ix2, NdFloat, SliceArg};
 use num_traits::Zero;
 
 /// Transform square matrix into triangular matrix
@@ -62,11 +62,11 @@ where
     }
 }
 
-/// Operations on triagular matrices
+/// Operations on triangular matrices
 pub trait Triangular {
-    /// Check if matrix is upper-triagular
+    /// Check if matrix is upper-triangular
     fn is_upper_triangular(&self) -> bool;
-    /// Check if matrix is lower-triagular
+    /// Check if matrix is lower-triangular
     fn is_lower_triangular(&self) -> bool;
 }
 
@@ -104,6 +104,45 @@ where
             false
         }
     }
+}
+
+#[inline]
+/// Generalized implementation for both upper and lower triangular solvers.
+/// Ensure that the diagonal of `a` is non-zero, otherwise output will be wrong.
+fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix2>>(
+    a: &ArrayBase<impl Data<Elem = A>, Ix2>,
+    b: &mut ArrayBase<impl DataMut<Elem = A>, Ix2>,
+    row_iter_fn: impl Fn(usize) -> I,
+    row_slice_fn: impl Fn(usize, usize) -> S,
+) -> Result<()> {
+    let rows = check_square(a)?;
+    if b.nrows() != rows {
+        return Err(LinalgError::WrongRows {
+            expected: rows,
+            actual: b.nrows(),
+        });
+    }
+    let cols = b.ncols();
+
+    // XXX Switching the col and row loops might lead to better cache locality for row-major
+    // layouts of b
+    for k in 0..cols {
+        for i in row_iter_fn(rows) {
+            let diag = *a.at((i, i));
+            let coeff = *b.at((i, k)) / diag;
+            *b.atm((i, k)) = coeff;
+
+            b.slice_mut(row_slice_fn(i, k))
+                .scaled_add(-coeff, &a.slice(row_slice_fn(i, i)));
+        }
+    }
+
+    Ok(())
+}
+
+pub trait SolveTriangularInplace<B> {
+    fn solve_upper_triangular_inplace<'a>(&self, b: &'a mut B) -> Result<&'a mut B>;
+    fn solve_lower_triangular_inplace<'a>(&self, b: &'a mut B) -> Result<&'a mut B>;
 }
 
 #[cfg(test)]
