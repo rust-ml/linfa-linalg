@@ -2,7 +2,7 @@
 
 use crate::{check_square, index::*, LinalgError, Result};
 
-use ndarray::{s, ArrayBase, Data, DataMut, Ix2, NdFloat, SliceArg};
+use ndarray::{s, Array, ArrayBase, Data, DataMut, Ix2, NdFloat, SliceArg};
 use num_traits::Zero;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,10 +125,49 @@ fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix
 
 pub trait SolveTriangularInplace<B> {
     fn solve_triangular_inplace<'a>(&self, b: &'a mut B, uplo: UPLO) -> Result<&'a mut B>;
+
+    fn solve_triangular_into(&self, mut b: B, uplo: UPLO) -> Result<B> {
+        self.solve_triangular_inplace(&mut b, uplo)?;
+        Ok(b)
+    }
+}
+
+impl<A: NdFloat, Si: Data<Elem = A>, So: DataMut<Elem = A>>
+    SolveTriangularInplace<ArrayBase<So, Ix2>> for ArrayBase<Si, Ix2>
+{
+    fn solve_triangular_inplace<'a>(
+        &self,
+        b: &'a mut ArrayBase<So, Ix2>,
+        uplo: UPLO,
+    ) -> Result<&'a mut ArrayBase<So, Ix2>> {
+        if uplo == UPLO::Upper {
+            solve_triangular_system(self, b, |rows| (0..rows).rev(), |r, c| s![..r, c])?;
+        } else {
+            solve_triangular_system(self, b, |rows| (0..rows), |r, c| s![r + 1.., c])?;
+        }
+        Ok(b)
+    }
+}
+
+pub trait SolveTriangular<B> {
+    type Output;
+
+    fn solve_triangular(&self, b: &B, uplo: UPLO) -> Result<Self::Output>;
+}
+
+impl<A: NdFloat, Si: Data<Elem = A>, So: Data<Elem = A>> SolveTriangular<ArrayBase<So, Ix2>>
+    for ArrayBase<Si, Ix2>
+{
+    type Output = Array<A, Ix2>;
+
+    fn solve_triangular(&self, b: &ArrayBase<So, Ix2>, uplo: UPLO) -> Result<Self::Output> {
+        self.solve_triangular_into(b.to_owned(), uplo)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use approx::assert_abs_diff_eq;
     use ndarray::{array, Array2};
 
     use crate::LinalgError;
@@ -183,5 +222,58 @@ mod tests {
         assert!(lower.is_triangular(UPLO::Lower));
         assert!(!lower.is_triangular(UPLO::Upper));
         assert_eq!(lower, array![[1, 0, 0], [4, 5, 0], [7, 8, 9]]);
+    }
+
+    #[test]
+    fn solve_triangular() {
+        let lower = array![[1.0, 0.0], [3.0, 4.0]];
+        assert!(lower.is_triangular(UPLO::Lower));
+        let expected = array![[2.2, 3.1, 2.2], [1.0, 0.0, 5.7]];
+        let b = lower.dot(&expected);
+        let x = lower.solve_triangular_into(b, UPLO::Lower).unwrap();
+        assert_abs_diff_eq!(x, expected, epsilon = 1e-7);
+
+        let upper = array![[4.4, 2.1], [0.0, 4.3]];
+        assert!(upper.is_triangular(UPLO::Upper));
+        let b = upper.dot(&expected);
+        let x = upper.solve_triangular_into(b, UPLO::Upper).unwrap();
+        assert_abs_diff_eq!(x, expected, epsilon = 1e-7);
+    }
+
+    #[test]
+    fn solve_corner_cases() {
+        let empty = Array2::<f64>::zeros((0, 0));
+        let out = empty.solve_triangular(&empty, UPLO::Upper).unwrap();
+        assert_eq!(out.dim(), (0, 0));
+
+        let one = Array2::<f64>::ones((1, 1));
+        let out = one.solve_triangular(&one, UPLO::Upper).unwrap();
+        assert_abs_diff_eq!(out, one);
+
+        let diag_zero = array![[0., 3.], [2., 0.]];
+        let zeros = Array2::<f64>::zeros((2, 2));
+        diag_zero.solve_triangular(&zeros, UPLO::Lower).unwrap(); // Just make sure that zeroed diagonals won't crash
+    }
+
+    #[test]
+    fn solve_error() {
+        let non_square = array![[1.2f64, 3.3]];
+        assert!(matches!(
+            non_square
+                .solve_triangular(&non_square, UPLO::Lower)
+                .unwrap_err(),
+            LinalgError::NotSquare { .. }
+        ));
+
+        let square = array![[1.1, 2.2], [3.3, 2.1]];
+        assert!(matches!(
+            square
+                .solve_triangular(&array![[2.2, 3.3]], UPLO::Upper)
+                .unwrap_err(),
+            LinalgError::WrongRows {
+                expected: 2,
+                actual: 1
+            }
+        ));
     }
 }
