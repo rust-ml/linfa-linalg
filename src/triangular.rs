@@ -123,9 +123,12 @@ fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix
     Ok(())
 }
 
+/// Solves a triangular system
 pub trait SolveTriangularInplace<B> {
+    /// Solves `self * x = b` where `self` is a triangular matrix, modifying `b` into `x` in-place.
     fn solve_triangular_inplace<'a>(&self, b: &'a mut B, uplo: UPLO) -> Result<&'a mut B>;
 
+    /// Solves `self * x = b` where `self` is a triangular matrix, consuming `b`.
     fn solve_triangular_into(&self, mut b: B, uplo: UPLO) -> Result<B> {
         self.solve_triangular_inplace(&mut b, uplo)?;
         Ok(b)
@@ -149,9 +152,11 @@ impl<A: NdFloat, Si: Data<Elem = A>, So: DataMut<Elem = A>>
     }
 }
 
+/// Solves a triangular system
 pub trait SolveTriangular<B> {
     type Output;
 
+    /// Solves `self * x = b` where `self` is a triangular matrix.
     fn solve_triangular(&self, b: &B, uplo: UPLO) -> Result<Self::Output>;
 }
 
