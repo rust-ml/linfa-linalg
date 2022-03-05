@@ -6,7 +6,11 @@ use ndarray::{
 };
 
 use crate::{
-    check_square, index::*, reflection::Reflection, triangular::IntoTriangular, LinalgError, Result,
+    check_square,
+    index::*,
+    reflection::Reflection,
+    triangular::{IntoTriangular, UPLO},
+    LinalgError, Result,
 };
 
 /// Performs Householder reflection on a single column
@@ -128,8 +132,8 @@ impl<A: NdFloat, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
 
     /// Return the full tridiagonal matrix `T`
     pub fn into_tridiag_matrix(mut self) -> ArrayBase<S, Ix2> {
-        self.diag_matrix.upper_triangular_inplace().unwrap();
-        self.diag_matrix.lower_triangular_inplace().unwrap();
+        self.diag_matrix.triangular_inplace(UPLO::Upper).unwrap();
+        self.diag_matrix.triangular_inplace(UPLO::Lower).unwrap();
         for (i, off) in self.off_diagonal.into_iter().enumerate() {
             let off = off.abs();
             let off1 = self.diag_matrix.atm((i + 1, i));

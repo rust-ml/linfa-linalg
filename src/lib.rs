@@ -37,6 +37,9 @@ pub enum LinalgError {
     /// Wrong number of columns in matrix
     #[error("Matrix must have {expected} columns, not {actual}")]
     WrongColumns { expected: usize, actual: usize },
+    /// Wrong number of rows in matrix
+    #[error("Matrix must have {expected} rows, not {actual}")]
+    WrongRows { expected: usize, actual: usize },
     /// ShapeError from `ndarray`
     #[error(transparent)]
     Shape(#[from] ShapeError),

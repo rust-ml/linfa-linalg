@@ -22,14 +22,22 @@ fn run_cholesky_test(orig: Array2<f64>) {
     let chol = orig.cholesky().unwrap();
     assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = 1e-7);
     let dirty = orig.cholesky_dirty().unwrap();
-    assert!(chol.is_lower_triangular());
-    assert_abs_diff_eq!(chol, dirty.into_lower_triangular().unwrap(), epsilon = 1e-7);
+    assert!(chol.is_triangular(UPLO::Lower));
+    assert_abs_diff_eq!(
+        chol,
+        dirty.into_triangular(UPLO::Lower).unwrap(),
+        epsilon = 1e-7
+    );
 
     let chol = orig.clone().cholesky_into().unwrap();
     assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = 1e-7);
     let dirty = orig.clone().cholesky_into_dirty().unwrap();
-    assert!(chol.is_lower_triangular());
-    assert_abs_diff_eq!(chol, dirty.into_lower_triangular().unwrap(), epsilon = 1e-7);
+    assert!(chol.is_triangular(UPLO::Lower));
+    assert_abs_diff_eq!(
+        chol,
+        dirty.into_triangular(UPLO::Lower).unwrap(),
+        epsilon = 1e-7
+    );
 
     let mut a = orig.clone();
     let chol = a.cholesky_inplace().unwrap();
@@ -37,8 +45,12 @@ fn run_cholesky_test(orig: Array2<f64>) {
     assert_abs_diff_eq!(a.dot(&a.t()), orig, epsilon = 1e-7);
     let mut b = orig;
     let dirty = b.cholesky_inplace_dirty().unwrap();
-    assert!(a.is_lower_triangular());
-    assert_abs_diff_eq!(a, dirty.lower_triangular_inplace().unwrap(), epsilon = 1e-7);
+    assert!(a.is_triangular(UPLO::Lower));
+    assert_abs_diff_eq!(
+        a,
+        dirty.triangular_inplace(UPLO::Lower).unwrap(),
+        epsilon = 1e-7
+    );
 }
 
 proptest! {
