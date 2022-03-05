@@ -6,6 +6,7 @@ use ndarray::{s, Array, ArrayBase, Data, DataMut, Ix2, NdFloat, SliceArg};
 use num_traits::Zero;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Denotes an upper-triangular or lower-triangular matrix
 pub enum UPLO {
     Upper,
     Lower,
