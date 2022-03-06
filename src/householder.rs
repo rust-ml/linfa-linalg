@@ -73,9 +73,9 @@ pub fn clear_row<A: NdFloat>(
         let mut refl_cols = bottom.slice_mut(s![.., irow + shift..]);
         refl.reflect_rows(&mut refl_cols, &mut work.slice_mut(s![irow + 1..]));
         refl_cols *= refl_norm.signum();
-        top.slice_mut(s![irow + shift]).assign(refl.axis());
+        top.slice_mut(s![irow + shift..]).assign(refl.axis());
     } else {
-        top.slice_mut(s![irow + shift]).assign(&axis);
+        top.slice_mut(s![irow + shift..]).assign(&axis);
     }
     refl_norm.unwrap_or_else(A::zero)
 }

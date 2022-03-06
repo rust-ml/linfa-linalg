@@ -1,8 +1,8 @@
-use ndarray::{s, Array1, Array2, ArrayBase, DataMut, Ix2, NdFloat};
+use ndarray::{s, Array1, Array2, ArrayBase, DataMut, Ix2, NdFloat, RawDataClone};
 
 use crate::{
     householder::{assemble_q, assemble_q_rows, clear_column, clear_row},
-    Result,
+    LinalgError, Result,
 };
 
 pub trait Bidiagonal {
@@ -21,6 +21,9 @@ where
     fn bidiagonal(mut self) -> Result<Self::Decomp> {
         let (nrows, ncols) = self.dim();
         let min_dim = nrows.min(ncols);
+        if min_dim == 0 {
+            return Err(LinalgError::EmptyMatrix);
+        }
 
         // XXX diagonal and off_diagonal could be uninit
         let mut diagonal = Array1::zeros(min_dim);
@@ -61,13 +64,24 @@ pub struct BidiagonalDecomp<A, S: DataMut<Elem = A>> {
     upper_diag: bool,
 }
 
+impl<A: Clone, S: DataMut<Elem = A> + RawDataClone> Clone for BidiagonalDecomp<A, S> {
+    fn clone(&self) -> Self {
+        Self {
+            uv: self.uv.clone(),
+            off_diagonal: self.off_diagonal.clone(),
+            diagonal: self.diagonal.clone(),
+            upper_diag: self.upper_diag,
+        }
+    }
+}
+
 impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
     pub fn is_upper_diag(&self) -> bool {
         self.upper_diag
     }
 
     pub fn generate_u(&self) -> Array2<A> {
-        let shift = self.upper_diag as usize;
+        let shift = !self.upper_diag as usize;
         assemble_q(&self.uv, shift, |i| {
             if self.upper_diag {
                 self.diagonal[i].signum()
@@ -78,7 +92,7 @@ impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
     }
 
     pub fn generate_vt(&self) -> Array2<A> {
-        let shift = !self.upper_diag as usize;
+        let shift = self.upper_diag as usize;
         // TODO try using uv.t() with assemble_q
         assemble_q_rows(&self.uv, shift, |i| {
             if self.upper_diag {
@@ -89,18 +103,89 @@ impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
         })
     }
 
-    pub fn generate_b(&self) -> Array2<A> {
+    pub fn into_b(self) -> Array2<A> {
         let d = self.diagonal.len();
-        let mut res = Array2::from_diag(&self.diagonal);
-
         let (r, c) = if self.upper_diag { (0, 1) } else { (1, 0) };
-        res.slice_mut(s![r..d - 1, c..d - 1])
+        let (diagonal, off_diagonal) = self.into_diagonals();
+        let mut res = Array2::from_diag(&diagonal);
+
+        res.slice_mut(s![r..d, c..d])
             .diag_mut()
-            .assign(&self.off_diagonal);
+            .assign(&off_diagonal);
         res
     }
 
     pub fn into_diagonals(self) -> (Array1<A>, Array1<A>) {
-        (self.diagonal, self.off_diagonal)
+        (
+            self.diagonal.mapv_into(A::abs),
+            self.off_diagonal.mapv_into(A::abs),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_abs_diff_eq;
+    use ndarray::array;
+
+    use super::*;
+
+    #[test]
+    fn bidiagonal_lower() {
+        let arr = array![
+            [4.0f64, 0., 2., 2.],
+            [-2., 6., 3., -2.],
+            [2., 7., -3.2, -1.]
+        ];
+        let decomp = arr.clone().bidiagonal().unwrap();
+        let u = decomp.generate_u();
+        let vt = decomp.generate_vt();
+        let b = decomp.clone().into_b();
+        let (diag, offdiag) = decomp.into_diagonals();
+
+        assert_eq!(u.dim(), (3, 3));
+        assert_eq!(b.dim(), (3, 3));
+        assert_eq!(vt.dim(), (3, 4));
+        assert_abs_diff_eq!(u.dot(&u.t()), Array2::eye(3), epsilon = 1e-5);
+        assert_abs_diff_eq!(vt.dot(&vt.t()), Array2::eye(3), epsilon = 1e-5);
+        assert_abs_diff_eq!(u.dot(&b).dot(&vt), arr, epsilon = 1e-5);
+
+        assert_abs_diff_eq!(diag, b.diag());
+        let partial = b.slice(s![1.., 0..]);
+        assert_abs_diff_eq!(offdiag, partial.diag());
+    }
+
+    #[test]
+    fn bidiagonal_upper() {
+        let arr = array![
+            [4.0f64, 0., 2.],
+            [-2., 6., 3.],
+            [2., 7., -3.2],
+            [4., -3., 0.2]
+        ];
+        let decomp = arr.clone().bidiagonal().unwrap();
+        let u = decomp.generate_u();
+        let vt = decomp.generate_vt();
+        let b = decomp.clone().into_b();
+        let (diag, offdiag) = decomp.into_diagonals();
+
+        assert_eq!(u.dim(), (4, 3));
+        assert_eq!(b.dim(), (3, 3));
+        assert_eq!(vt.dim(), (3, 3));
+        assert_abs_diff_eq!(u.t().dot(&u), Array2::eye(3), epsilon = 1e-5);
+        assert_abs_diff_eq!(vt.dot(&vt.t()), Array2::eye(3), epsilon = 1e-5);
+        assert_abs_diff_eq!(u.dot(&b).dot(&vt), arr, epsilon = 1e-5);
+
+        assert_abs_diff_eq!(diag, b.diag());
+        let partial = b.slice(s![0.., 1..]);
+        assert_abs_diff_eq!(offdiag, partial.diag());
+    }
+
+    #[test]
+    fn bidiagonal_error() {
+        assert!(matches!(
+            Array2::<f64>::zeros((0, 0)).bidiagonal(),
+            Err(LinalgError::EmptyMatrix)
+        ));
     }
 }
