@@ -110,35 +110,6 @@ pub fn assemble_q<A: NdFloat, S: Data<Elem = A>>(
     res
 }
 
-/// Like `assemble_q`, but does row reflection instead of column reflection.
-pub fn assemble_q_rows<A: NdFloat, S: Data<Elem = A>>(
-    matrix: &ArrayBase<S, Ix2>,
-    shift: usize,
-    sign_fn: impl Fn(usize) -> A,
-) -> Array2<A> {
-    let (nrows, ncols) = matrix.dim();
-    let dim = nrows.min(ncols);
-    let mut res = if nrows == ncols {
-        Array2::eye(nrows)
-    } else {
-        let mut a = Array2::zeros((dim, ncols));
-        a.diag_mut().add_assign(A::one());
-        a
-    };
-
-    let mut work = Array1::zeros(dim);
-    for i in (0..dim - shift).rev() {
-        let axis = matrix.slice(s![i, i + shift..]);
-        let refl = Reflection::new(axis, A::zero());
-
-        let mut res_cols = res.slice_mut(s![i.., i + shift..]);
-        refl.reflect_rows(&mut res_cols, &mut work.slice_mut(s![i..]));
-        res_cols *= sign_fn(i);
-    }
-
-    res
-}
-
 #[cfg(test)]
 mod tests {
     use approx::assert_abs_diff_eq;

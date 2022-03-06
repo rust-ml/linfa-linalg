@@ -1,7 +1,7 @@
 use ndarray::{s, Array1, Array2, ArrayBase, DataMut, Ix2, NdFloat, RawDataClone};
 
 use crate::{
-    householder::{assemble_q, assemble_q_rows, clear_column, clear_row},
+    householder::{assemble_q, clear_column, clear_row},
     LinalgError, Result,
 };
 
@@ -93,14 +93,14 @@ impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
 
     pub fn generate_vt(&self) -> Array2<A> {
         let shift = self.upper_diag as usize;
-        // TODO try using uv.t() with assemble_q
-        assemble_q_rows(&self.uv, shift, |i| {
+        assemble_q(&self.uv.t(), shift, |i| {
             if self.upper_diag {
                 self.off_diagonal[i].signum()
             } else {
                 self.diagonal[i].signum()
             }
         })
+        .reversed_axes()
     }
 
     pub fn into_b(self) -> Array2<A> {
