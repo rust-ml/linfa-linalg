@@ -2,7 +2,7 @@
 
 use ndarray::{
     linalg::{general_mat_mul, general_mat_vec_mul},
-    s, Array1, Array2, ArrayBase, Axis, DataMut, Ix2, NdFloat,
+    s, Array1, Array2, ArrayBase, Axis, DataMut, Ix2, NdFloat, RawDataClone,
 };
 
 use crate::{
@@ -74,6 +74,15 @@ pub struct TridiagonalDecomp<A, S: DataMut<Elem = A>> {
     diag_matrix: ArrayBase<S, Ix2>,
     // The off-diagonal elements of the tridiagonal matrix
     off_diagonal: Array1<A>,
+}
+
+impl<A: Clone, S: DataMut<Elem = A> + RawDataClone> Clone for TridiagonalDecomp<A, S> {
+    fn clone(&self) -> Self {
+        Self {
+            diag_matrix: self.diag_matrix.clone(),
+            off_diagonal: self.off_diagonal.clone(),
+        }
+    }
 }
 
 impl<A: NdFloat, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
