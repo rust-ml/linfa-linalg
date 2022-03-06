@@ -49,6 +49,13 @@ prop_compose! {
     }
 }
 
+prop_compose! {
+    pub fn rect_arr()(rows in DIM_RANGE, cols in DIM_RANGE)
+        (arr in matrix(rows, cols)) -> Array2<f64> {
+        arr
+    }
+}
+
 // TODO offer this in the main crate API
 fn to_symm(arr: &mut Array2<f64>) {
     let n = arr.nrows();
