@@ -1,6 +1,6 @@
 use std::ops::AddAssign;
 
-use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix1, Ix2, NdFloat};
+use ndarray::{s, Array2, ArrayBase, Data, DataMut, Ix1, Ix2, NdFloat};
 
 use crate::reflection::Reflection;
 
@@ -59,7 +59,6 @@ pub fn clear_column<A: NdFloat, S: DataMut<Elem = A>>(
 pub fn clear_row<A: NdFloat>(
     matrix: &mut ArrayBase<impl DataMut<Elem = A>, Ix2>,
     axis_packed: &mut ArrayBase<impl DataMut<Elem = A>, Ix1>,
-    work: &mut ArrayBase<impl DataMut<Elem = A>, Ix1>,
     irow: usize,
     shift: usize,
 ) -> A {
@@ -71,7 +70,7 @@ pub fn clear_row<A: NdFloat>(
     if let Some(refl_norm) = refl_norm {
         let refl = Reflection::new(axis, A::zero());
         let mut refl_cols = bottom.slice_mut(s![.., irow + shift..]);
-        refl.reflect_rows(&mut refl_cols, &mut work.slice_mut(s![irow + 1..]));
+        refl.reflect_rows(&mut refl_cols);
         refl_cols *= refl_norm.signum();
         top.slice_mut(s![irow + shift..]).assign(refl.axis());
     } else {
