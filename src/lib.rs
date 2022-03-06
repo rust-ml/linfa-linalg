@@ -11,9 +11,11 @@
 
 #![allow(clippy::many_single_char_names)]
 
+pub mod bidiagonal;
 pub mod cholesky;
 pub mod eigh;
 mod givens;
+mod householder;
 mod index;
 mod reflection;
 pub mod triangular;
