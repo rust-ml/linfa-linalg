@@ -17,7 +17,7 @@ pub mod eigh;
 mod givens;
 mod householder;
 mod index;
-mod reflection;
+pub mod reflection;
 pub mod triangular;
 pub mod tridiagonal;
 

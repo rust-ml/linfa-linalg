@@ -1,7 +1,4 @@
-use ndarray::{
-    linalg::{general_mat_mul, general_mat_vec_mul},
-    ArrayBase, Axis, Data, DataMut, Ix1, Ix2, NdFloat,
-};
+use ndarray::{ArrayBase, Data, DataMut, Ix1, Ix2, NdFloat};
 
 /// Reflection with respect to a plane
 pub struct Reflection<A, D: Data<Elem = A>> {
