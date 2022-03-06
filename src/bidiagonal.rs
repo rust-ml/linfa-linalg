@@ -1,3 +1,5 @@
+//! Compact bidiagonal decomposition for matrices
+
 use ndarray::{s, Array1, Array2, ArrayBase, DataMut, Ix2, NdFloat, RawDataClone};
 
 use crate::{
@@ -5,9 +7,13 @@ use crate::{
     LinalgError, Result,
 };
 
+/// Bidiagonal decomposition of a non-empty matrix
 pub trait Bidiagonal {
     type Decomp;
 
+    /// Calculate the compact bidiagonal decomposition of a symmetric matrix, consisting of square
+    /// bidiagonal matrix `B` and rectangular semi-orthogonal matrices `U` and `Vt`, such that `U *
+    /// B * Vt` yields the original matrix.
     fn bidiagonal(self) -> Result<Self::Decomp>;
 }
 
@@ -54,6 +60,7 @@ where
 }
 
 #[derive(Debug)]
+/// Full bidiagonal decomposition
 pub struct BidiagonalDecomp<A, S: DataMut<Elem = A>> {
     uv: ArrayBase<S, Ix2>,
     off_diagonal: Array1<A>,
@@ -73,10 +80,13 @@ impl<A: Clone, S: DataMut<Elem = A> + RawDataClone> Clone for BidiagonalDecomp<A
 }
 
 impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
+    /// Whether `B` is upper-bidiagonal or not
     pub fn is_upper_diag(&self) -> bool {
         self.upper_diag
     }
 
+    /// Generates `U` matrix, which is R x min(R, C), where R and C are dimensions of the original
+    /// matrix
     pub fn generate_u(&self) -> Array2<A> {
         let shift = !self.upper_diag as usize;
         assemble_q(&self.uv, shift, |i| {
@@ -88,6 +98,8 @@ impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
         })
     }
 
+    /// Generates `Vt` matrix, which is min(R, C) x C, where R and C are dimensions of the original
+    /// matrix
     pub fn generate_vt(&self) -> Array2<A> {
         let shift = self.upper_diag as usize;
         assemble_q(&self.uv.t(), shift, |i| {
@@ -100,6 +112,8 @@ impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
         .reversed_axes()
     }
 
+    /// Returns `B` matrix, which is min(R, C) x min(R, C), where R and C are dimensions of the
+    /// original matrix
     pub fn into_b(self) -> Array2<A> {
         let d = self.diagonal.len();
         let (r, c) = if self.upper_diag { (0, 1) } else { (1, 0) };
@@ -112,6 +126,7 @@ impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
         res
     }
 
+    /// Returns the diagonal and off-diagonal elements of `B` as 1D arrays
     pub fn into_diagonals(self) -> (Array1<A>, Array1<A>) {
         (
             self.diagonal.mapv_into(A::abs),
