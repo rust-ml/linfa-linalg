@@ -28,21 +28,20 @@ where
         // XXX diagonal and off_diagonal could be uninit
         let mut diagonal = Array1::zeros(min_dim);
         let mut off_diagonal = Array1::zeros(min_dim - 1);
-        let mut axis_packed = Array1::zeros(ncols);
 
         let upper_diag = nrows >= ncols;
         if upper_diag {
             for i in 0..min_dim - 1 {
                 diagonal[i] = clear_column(&mut self, i, 0);
-                off_diagonal[i] = clear_row(&mut self, &mut axis_packed, i, 1);
+                off_diagonal[i] = clear_row(&mut self, i, 1);
             }
             diagonal[min_dim - 1] = clear_column(&mut self, min_dim - 1, 0);
         } else {
             for i in 0..min_dim - 1 {
-                diagonal[i] = clear_row(&mut self, &mut axis_packed, i, 0);
+                diagonal[i] = clear_row(&mut self, i, 0);
                 off_diagonal[i] = clear_column(&mut self, i, 1);
             }
-            diagonal[min_dim - 1] = clear_row(&mut self, &mut axis_packed, min_dim - 1, 0);
+            diagonal[min_dim - 1] = clear_row(&mut self, min_dim - 1, 0);
         }
 
         Ok(BidiagonalDecomp {

@@ -58,25 +58,10 @@ pub fn clear_column<A: NdFloat, S: DataMut<Elem = A>>(
 /// Returns the signed norm of the column.
 pub fn clear_row<A: NdFloat>(
     matrix: &mut ArrayBase<impl DataMut<Elem = A>, Ix2>,
-    axis_packed: &mut ArrayBase<impl DataMut<Elem = A>, Ix1>,
     irow: usize,
     shift: usize,
 ) -> A {
-    let (mut top, mut bottom) = matrix.multi_slice_mut((s![irow, ..], s![irow + 1.., ..]));
-    let mut axis = axis_packed.slice_mut(s![irow + shift..]);
-    axis.assign(&top.slice(s![irow + shift..]));
-    let refl_norm = reflection_axis_mut(&mut axis);
-
-    if let Some(refl_norm) = refl_norm {
-        let refl = Reflection::new(axis, A::zero());
-        let mut refl_cols = bottom.slice_mut(s![.., irow + shift..]);
-        refl.reflect_rows(&mut refl_cols);
-        refl_cols *= refl_norm.signum();
-        top.slice_mut(s![irow + shift..]).assign(refl.axis());
-    } else {
-        top.slice_mut(s![irow + shift..]).assign(&axis);
-    }
-    refl_norm.unwrap_or_else(A::zero)
+    clear_column(&mut matrix.view_mut().reversed_axes(), irow, shift)
 }
 
 /// Used to assemble `Q` for tridiagonal decompositions and `U` for bidiagonal decompositions.
