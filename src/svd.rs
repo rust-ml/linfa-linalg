@@ -7,6 +7,7 @@ use crate::{
     tridiagonal::SymmetricTridiagonal, LinalgError, Result,
 };
 
+#[allow(clippy::type_complexity)]
 fn svd<A: NdFloat, S: DataMut<Elem = A>>(
     mut matrix: ArrayBase<S, Ix2>,
     compute_u: bool,
@@ -171,14 +172,15 @@ fn svd<A: NdFloat, S: DataMut<Elem = A>>(
             if let Some(ref mut u) = u {
                 rot_u
                     .unwrap()
-                    .rotate_rows(&mut u.slice_mut(s![.., 0..=1]))
+                    .rotate_rows(&mut u.slice_mut(s![.., start..start + 2]))
                     .unwrap();
             }
 
             if let Some(ref mut vt) = vt {
                 rot_v
                     .unwrap()
-                    .rotate_rows(&mut vt.slice_mut(s![0..=1, ..]))
+                    .inverse()
+                    .rotate_cols(&mut vt.slice_mut(s![start..start + 2, ..]))
                     .unwrap();
             }
 
@@ -228,23 +230,22 @@ fn delimit_subproblem<A: NdFloat>(
     while n > 0 {
         let m = n - 1;
         unsafe {
-            if *off_diag.at(m) <= eps * (*diag.at(n) + *diag.at(m)) {
+            if off_diag.at(m).is_zero()
+                || off_diag.at(m).abs() <= eps * (diag.at(n).abs() + diag.at(m).abs())
+            {
                 *off_diag.atm(m) = A::zero();
-                continue;
+            } else if diag.at(m).abs() <= eps {
+                *diag.atm(m) = A::zero();
+                cancel_horizontal_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m, m + 1);
+                if m != 0 {
+                    cancel_vertical_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m - 1);
+                }
+            } else if diag.at(n).abs() <= eps {
+                *diag.atm(m) = A::zero();
+                cancel_vertical_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m);
+            } else {
+                break;
             }
-        }
-
-        if unsafe { *diag.at(m) } <= eps {
-            unsafe { *diag.atm(m) = A::zero() };
-            cancel_horizontal_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m, m + 1);
-            if m != 0 {
-                cancel_vertical_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m - 1);
-            }
-        } else if unsafe { *diag.at(n) } <= eps {
-            unsafe { *diag.atm(m) = A::zero() };
-            cancel_vertical_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m);
-        } else {
-            break;
         }
 
         n -= 1;
@@ -259,13 +260,13 @@ fn delimit_subproblem<A: NdFloat>(
         let m = new_start - 1;
 
         unsafe {
-            if *off_diag.at(m) <= eps * (*diag.at(new_start) + *diag.at(m)) {
+            if off_diag.at(m).abs() <= eps * (diag.at(new_start).abs() + diag.at(m).abs()) {
                 *off_diag.atm(m) = A::zero();
                 break;
             }
         }
 
-        if unsafe { *diag.at(m) } <= eps {
+        if unsafe { diag.at(m).abs() } <= eps {
             unsafe { *diag.atm(m) = A::zero() };
             cancel_horizontal_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m, n);
             if m != 0 {
@@ -403,4 +404,48 @@ fn compute_2x2_uptrig_svd<A: NdFloat>(
     }
 
     (v1, v2, u, v_t)
+}
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_abs_diff_eq;
+    use ndarray::array;
+
+    use super::*;
+
+    #[test]
+    fn svd_test() {
+        let (u, s, vt) = svd(array![[3.0, 0.], [0., -2.]], true, true, 1e-15).unwrap();
+        assert_abs_diff_eq!(s, array![3., 2.], epsilon = 1e-7);
+        assert_abs_diff_eq!(u.unwrap(), array![[1., 0.], [0., -1.]], epsilon = 1e-7);
+        assert_abs_diff_eq!(vt.unwrap(), array![[1., 0.], [0., 1.]], epsilon = 1e-7);
+
+        let (u, s, vt) = svd(array![[1., 0., -1.], [-2., 1., 4.]], false, false, 1e-15).unwrap();
+        assert_abs_diff_eq!(s, array![0.51371, 4.76824], epsilon = 1e-5);
+        assert!(u.is_none());
+        assert!(vt.is_none());
+    }
+
+    fn test_eigvecs(a: Array2<f64>, exp_s: Array1<f64>) {
+        let (u, s, vt) = svd(a.clone(), true, true, 1e-15).unwrap();
+        let (u, vt) = (u.unwrap(), vt.unwrap());
+        assert_abs_diff_eq!(s, exp_s, epsilon = 1e-5);
+        assert!(s.iter().copied().all(f64::is_sign_positive));
+        assert_abs_diff_eq!(u.dot(&Array2::from_diag(&s)).dot(&vt), a, epsilon = 1e-5);
+
+        let (u2, s2, vt2) = svd(a.clone(), false, true, 1e-15).unwrap();
+        assert!(u2.is_none());
+        assert_abs_diff_eq!(s2, s);
+        assert_abs_diff_eq!(vt2.unwrap(), vt);
+
+        let (u3, s3, vt3) = svd(a.clone(), true, false, 1e-15).unwrap();
+        assert!(vt3.is_none());
+        assert_abs_diff_eq!(s3, s);
+        assert_abs_diff_eq!(u3.unwrap(), u);
+
+        let (u4, s4, vt4) = svd(a, false, false, 1e-15).unwrap();
+        assert!(vt4.is_none());
+        assert!(u4.is_none());
+        assert_abs_diff_eq!(s4, s);
+    }
 }
