@@ -37,8 +37,15 @@ impl<A: NdFloat> GivensRotation<A> {
         })
     }
 
+    pub fn identity() -> Self {
+        Self {
+            c: A::one(),
+            s: A::zero(),
+        }
+    }
+
     pub fn try_new(c: A, s: A, eps: A) -> Option<(Self, A)> {
-        let norm = (c * c + s * s).sqrt();
+        let norm = c.hypot(s);
         if norm > eps {
             let c = c / norm;
             let s = s / norm;
@@ -46,6 +53,10 @@ impl<A: NdFloat> GivensRotation<A> {
         } else {
             None
         }
+    }
+
+    pub fn new(c: A, s: A) -> (Self, A) {
+        Self::try_new(c, s, A::zero()).unwrap_or_else(|| (Self::identity(), A::zero()))
     }
 
     pub fn c(&self) -> A {
