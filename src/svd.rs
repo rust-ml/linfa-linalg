@@ -241,7 +241,7 @@ fn delimit_subproblem<A: NdFloat>(
                     cancel_vertical_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m - 1);
                 }
             } else if diag.at(n).abs() <= eps {
-                *diag.atm(m) = A::zero();
+                *diag.atm(n) = A::zero();
                 cancel_vertical_off_diagonal_elt(diag, off_diag, u, v_t, is_upper_diag, m);
             } else {
                 break;
@@ -299,18 +299,18 @@ fn cancel_horizontal_off_diagonal_elt<A: NdFloat>(
             if is_upper_diag {
                 if let Some(u) = u {
                     rot.inverse()
-                        .rotate_rows(&mut u.slice_mut(s![.., i..=k;k-i]))
+                        .rotate_rows(&mut u.slice_mut(s![.., i..=k+1;k-i+1]))
                         .unwrap()
                 }
             } else if let Some(v_t) = v_t {
-                rot.rotate_cols(&mut v_t.slice_mut(s![i..=k;k-i, ..]))
+                rot.rotate_cols(&mut v_t.slice_mut(s![i..=k+1;k-i+1, ..]))
                     .unwrap();
             }
 
             if k + 1 != end {
                 unsafe {
                     v.0 = -rot.s() * *off_diag.at(k + 1);
-                    v.1 = *diag.at(k + 2); // XXX is this supposed to be +1?
+                    v.1 = *diag.at(k + 2);
                     *off_diag.atm(k + 1) *= rot.c();
                 }
             }
@@ -337,12 +337,12 @@ fn cancel_vertical_off_diagonal_elt<A: NdFloat>(
 
             if is_upper_diag {
                 if let Some(v_t) = v_t {
-                    rot.rotate_cols(&mut v_t.slice_mut(s![k..=i;i-k, ..]))
+                    rot.rotate_cols(&mut v_t.slice_mut(s![k..=i+1;i-k+1, ..]))
                         .unwrap();
                 }
             } else if let Some(u) = u {
                 rot.inverse()
-                    .rotate_rows(&mut u.slice_mut(s![.., k..=i;i-k]))
+                    .rotate_rows(&mut u.slice_mut(s![.., k..=i+1;i-k+1]))
                     .unwrap()
             }
 
@@ -393,12 +393,12 @@ fn compute_2x2_uptrig_svd<A: NdFloat>(
             v_t = Some(csv.clone());
         }
 
+        let cu = (m11 * csv.c() + m12 * csv.s()) / v1;
+        let su = (m22 * csv.s()) / v1;
+        let (csu, sgn_u) = GivensRotation::new(cu, su);
+        v1 *= sgn_u;
+        v2 *= sgn_u;
         if compute_u {
-            let cu = (m11 * csv.c() + m12 * csv.s()) / v1;
-            let su = (m22 * csv.s()) / v1;
-            let (csu, sgn_u) = GivensRotation::new(cu, su);
-            v1 *= sgn_u;
-            v2 *= sgn_u;
             u = Some(csu);
         }
     }
@@ -426,7 +426,7 @@ mod tests {
         assert!(vt.is_none());
     }
 
-    fn test_eigvecs(a: Array2<f64>, exp_s: Array1<f64>) {
+    fn test_svd_props(a: Array2<f64>, exp_s: Array1<f64>) {
         let (u, s, vt) = svd(a.clone(), true, true, 1e-15).unwrap();
         let (u, vt) = (u.unwrap(), vt.unwrap());
         assert_abs_diff_eq!(s, exp_s, epsilon = 1e-5);
@@ -435,17 +435,27 @@ mod tests {
 
         let (u2, s2, vt2) = svd(a.clone(), false, true, 1e-15).unwrap();
         assert!(u2.is_none());
-        assert_abs_diff_eq!(s2, s);
-        assert_abs_diff_eq!(vt2.unwrap(), vt);
+        assert_abs_diff_eq!(s2, s, epsilon = 1e-9);
+        assert_abs_diff_eq!(vt2.unwrap(), vt, epsilon = 1e-9);
 
         let (u3, s3, vt3) = svd(a.clone(), true, false, 1e-15).unwrap();
         assert!(vt3.is_none());
-        assert_abs_diff_eq!(s3, s);
-        assert_abs_diff_eq!(u3.unwrap(), u);
+        assert_abs_diff_eq!(s3, s, epsilon = 1e-9);
+        assert_abs_diff_eq!(u3.unwrap(), u, epsilon = 1e-9);
 
         let (u4, s4, vt4) = svd(a, false, false, 1e-15).unwrap();
         assert!(vt4.is_none());
         assert!(u4.is_none());
-        assert_abs_diff_eq!(s4, s);
+        assert_abs_diff_eq!(s4, s, epsilon = 1e-9);
+    }
+
+    #[test]
+    fn svd_props() {
+        test_svd_props(array![[-2., 1., 4.]], array![21f64.sqrt()]);
+        test_svd_props(array![[1., 1.], [1., 1.]], array![2., 0.]);
+        test_svd_props(
+            array![[-3., 4.], [4.3, 2.1], [6.6, 8.7]],
+            array![5.2633658, 11.80876],
+        );
     }
 }
