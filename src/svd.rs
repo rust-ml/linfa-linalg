@@ -524,8 +524,22 @@ mod tests {
                 [10.74785316637712, -5.994983325167452, -6.064492921857296],
                 [-4.149751381521569, 20.654504205822462, -4.470436210703133],
                 [-22.772715014220207, -1.4554372570788008, 18.108113992170573]
-            ],
+            ]
+            .reversed_axes(),
             array![2.23811978e+01, 3.16188022e+01, 0.],
         );
+    }
+
+    #[test]
+    fn svd_corner() {
+        assert!(matches!(
+            svd(Array2::zeros((0, 1)), false, false, 1e-15).unwrap_err(),
+            LinalgError::EmptyMatrix
+        ));
+
+        let (u, s, vt) = svd(array![[0f64]], true, true, 1e-15).unwrap();
+        assert_abs_diff_eq!(s, array![0.]);
+        assert_abs_diff_eq!(u.unwrap(), array![[1.]]);
+        assert_abs_diff_eq!(vt.unwrap(), array![[1.]]);
     }
 }
