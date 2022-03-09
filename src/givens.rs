@@ -99,9 +99,9 @@ impl<A: NdFloat> GivensRotation<A> {
     }
 
     /// Performs the multiplication `rhs = self * rhs` in-place.
-    pub fn rotate_cols<S: DataMut<Elem = A>>(&self, lhs: &mut ArrayBase<S, Ix2>) -> Result<()> {
+    pub fn rotate_cols<S: DataMut<Elem = A>>(&self, rhs: &mut ArrayBase<S, Ix2>) -> Result<()> {
         self.inverse()
-            .rotate_rows(&mut lhs.view_mut().reversed_axes())
+            .rotate_rows(&mut rhs.view_mut().reversed_axes())
             .map_err(|err| match err {
                 LinalgError::WrongColumns { expected, actual } => {
                     LinalgError::WrongRows { expected, actual }

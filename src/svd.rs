@@ -384,7 +384,6 @@ fn compute_2x2_uptrig_svd<A: NdFloat>(
     let mut v_t = None;
 
     if compute_v || compute_u {
-        // XXX might want to put this in the if
         let cv = m11 * m12;
         let sv = v1 * v1 - m11 * m11;
         let (csv, sgn_v) = GivensRotation::new(cv, sv);

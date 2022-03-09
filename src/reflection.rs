@@ -20,6 +20,7 @@ impl<A, D: Data<Elem = A>> Reflection<A, D> {
     }
 }
 
+// XXX Can use matrix multiplication algorithm instead of iterative algorithm for both reflections
 impl<A: NdFloat, D: Data<Elem = A>> Reflection<A, D> {
     /// Apply reflection to the columns of `rhs`
     pub fn reflect_cols<M: DataMut<Elem = A>>(&self, rhs: &mut ArrayBase<M, Ix2>) {
@@ -31,8 +32,8 @@ impl<A: NdFloat, D: Data<Elem = A>> Reflection<A, D> {
     }
 
     /// Apply reflection to the rows of `lhs`
-    pub fn reflect_rows<M: DataMut<Elem = A>>(&self, rhs: &mut ArrayBase<M, Ix2>) {
-        self.reflect_cols(&mut rhs.view_mut().reversed_axes());
+    pub fn reflect_rows<M: DataMut<Elem = A>>(&self, lhs: &mut ArrayBase<M, Ix2>) {
+        self.reflect_cols(&mut lhs.view_mut().reversed_axes());
     }
 }
 
