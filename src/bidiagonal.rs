@@ -7,13 +7,13 @@ use crate::{
     LinalgError, Result,
 };
 
-/// Bidiagonal decomposition of a non-empty matrix
+/// Compact bidiagonal decomposition of a non-empty matrix
 pub trait Bidiagonal {
     type Decomp;
 
-    /// Calculate the compact bidiagonal decomposition of a symmetric matrix, consisting of square
-    /// bidiagonal matrix `B` and rectangular semi-orthogonal matrices `U` and `Vt`, such that `U *
-    /// B * Vt` yields the original matrix.
+    /// Calculate the compact bidiagonal decomposition of a matrix, consisting of square bidiagonal
+    /// matrix `B` and rectangular semi-orthogonal matrices `U` and `Vt`, such that `U * B * Vt`
+    /// yields the original matrix.
     fn bidiagonal(self) -> Result<Self::Decomp>;
 }
 

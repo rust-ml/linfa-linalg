@@ -1,3 +1,5 @@
+//! Compact singular-value decomposition of matrices
+
 #![allow(clippy::type_complexity)]
 
 use std::ops::MulAssign;
@@ -406,11 +408,15 @@ fn compute_2x2_uptrig_svd<A: NdFloat>(
     (v1, v2, u, v_t)
 }
 
+/// Compact singular-value decomposition of a non-empty matrix
 pub trait SVDInto {
     type U;
     type Vt;
     type Sigma;
 
+    /// Calculates the compact SVD of a matrix, consisting of a square non-negative diagonal
+    /// matrix `S` and rectangular semi-orthogonal matrices `U` and `Vt`, such that `U * S * Vt`
+    /// yields the original matrix. Only the diagonal elements of `S` is returned.
     fn svd_into(
         self,
         calc_u: bool,
@@ -432,11 +438,15 @@ impl<A: NdFloat, S: DataMut<Elem = A>> SVDInto for ArrayBase<S, Ix2> {
     }
 }
 
+/// Compact singular-value decomposition of a non-empty matrix
 pub trait SVD {
     type U;
     type Vt;
     type Sigma;
 
+    /// Calculates the compact SVD of a matrix, consisting of a square non-negative diagonal
+    /// matrix `S` and rectangular semi-orthogonal matrices `U` and `Vt`, such that `U * S * Vt`
+    /// yields the original matrix. Only the diagonal elements of `S` is returned.
     fn svd(
         &self,
         calc_u: bool,
