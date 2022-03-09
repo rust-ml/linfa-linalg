@@ -175,7 +175,7 @@ fn delimit_subproblem<A: NdFloat>(
 /// The inputs are interpreted as the 2x2 matrix:
 ///     tmm  tmn
 ///     tmn  tnn
-fn wilkinson_shift<A: NdFloat>(tmm: A, tnn: A, tmn: A) -> A {
+pub(crate) fn wilkinson_shift<A: NdFloat>(tmm: A, tnn: A, tmn: A) -> A {
     if !tmn.is_zero() {
         let tmn_sq = tmn * tmn;
         let d = (tmm - tnn) * A::from(0.5).unwrap();
