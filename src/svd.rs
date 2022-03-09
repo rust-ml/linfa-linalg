@@ -1,13 +1,14 @@
+#![allow(clippy::type_complexity)]
+
 use std::ops::MulAssign;
 
 use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
 use crate::{
-    bidiagonal::Bidiagonal, eigh::wilkinson_shift, givens::GivensRotation, index::*,
-    tridiagonal::SymmetricTridiagonal, LinalgError, Result,
+    bidiagonal::Bidiagonal, eigh::wilkinson_shift, givens::GivensRotation, index::*, LinalgError,
+    Result,
 };
 
-#[allow(clippy::type_complexity)]
 fn svd<A: NdFloat, S: DataMut<Elem = A>>(
     mut matrix: ArrayBase<S, Ix2>,
     compute_u: bool,
@@ -406,6 +407,58 @@ fn compute_2x2_uptrig_svd<A: NdFloat>(
     (v1, v2, u, v_t)
 }
 
+pub trait SVDInto {
+    type U;
+    type Vt;
+    type Sigma;
+
+    fn svd_into(
+        self,
+        calc_u: bool,
+        calc_vt: bool,
+    ) -> Result<(Option<Self::U>, Self::Sigma, Option<Self::Vt>)>;
+}
+
+impl<A: NdFloat, S: DataMut<Elem = A>> SVDInto for ArrayBase<S, Ix2> {
+    type U = Array2<A>;
+    type Vt = Array2<A>;
+    type Sigma = Array1<A>;
+
+    fn svd_into(
+        self,
+        calc_u: bool,
+        calc_vt: bool,
+    ) -> Result<(Option<Self::U>, Self::Sigma, Option<Self::Vt>)> {
+        svd(self, calc_u, calc_vt, A::from(1e-15).unwrap())
+    }
+}
+
+pub trait SVD {
+    type U;
+    type Vt;
+    type Sigma;
+
+    fn svd(
+        &self,
+        calc_u: bool,
+        calc_vt: bool,
+    ) -> Result<(Option<Self::U>, Self::Sigma, Option<Self::Vt>)>;
+}
+
+impl<A: NdFloat, S: Data<Elem = A>> SVD for ArrayBase<S, Ix2> {
+    type U = Array2<A>;
+    type Vt = Array2<A>;
+    type Sigma = Array1<A>;
+
+    fn svd(
+        &self,
+        calc_u: bool,
+        calc_vt: bool,
+    ) -> Result<(Option<Self::U>, Self::Sigma, Option<Self::Vt>)> {
+        svd(self.to_owned(), calc_u, calc_vt, A::from(1e-15).unwrap())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_abs_diff_eq;
@@ -456,6 +509,14 @@ mod tests {
         test_svd_props(
             array![[-3., 4.], [4.3, 2.1], [6.6, 8.7]],
             array![5.2633658, 11.80876],
+        );
+        test_svd_props(
+            array![
+                [10.74785316637712, -5.994983325167452, -6.064492921857296],
+                [-4.149751381521569, 20.654504205822462, -4.470436210703133],
+                [-22.772715014220207, -1.4554372570788008, 18.108113992170573]
+            ],
+            array![2.23811978e+01, 3.16188022e+01, 0.],
         );
     }
 }
