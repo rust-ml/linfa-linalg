@@ -40,3 +40,11 @@ proptest! {
         arr.eigh_into().unwrap();
     }
 }
+
+#[test]
+fn eigh_f32() {
+    let vals = array![[1f32, -5., 7.], [-5., 2., -9.], [7., -9., 3.]]
+        .eigvalsh()
+        .unwrap();
+    assert_abs_diff_eq!(vals, array![16.28378, -3.41558, -6.86819], epsilon = 1e-5);
+}

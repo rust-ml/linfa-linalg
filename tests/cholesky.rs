@@ -1,5 +1,5 @@
 use approx::assert_abs_diff_eq;
-use ndarray::Array2;
+use ndarray::prelude::*;
 use proptest::prelude::*;
 
 use ndarray_linalg_rs::{cholesky::*, triangular::*};
@@ -59,4 +59,14 @@ proptest! {
     fn cholesky_test(arr in hpd_arr()) {
         run_cholesky_test(arr)
     }
+}
+
+#[test]
+fn cholesky_f32() {
+    let arr = array![[25f32, 15., -5.], [15., 18., 0.], [-5., 0., 11.]];
+    let lower = array![[5.0, 0.0, 0.0], [3.0, 3.0, 0.0], [-1., 1., 3.]];
+
+    let chol = arr.cholesky().unwrap();
+    assert_abs_diff_eq!(chol, lower, epsilon = 1e-7);
+    assert_abs_diff_eq!(chol.dot(&chol.t()), arr, epsilon = 1e-7);
 }

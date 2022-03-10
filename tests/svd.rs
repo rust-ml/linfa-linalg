@@ -46,3 +46,11 @@ proptest! {
         run_svd_test(arr);
     }
 }
+
+#[test]
+fn svd_f32() {
+    let (u, s, vt) = array![[3.0f32, 0.], [0., -2.]].svd(true, true).unwrap();
+    assert_abs_diff_eq!(s, array![3., 2.], epsilon = 1e-7);
+    assert_abs_diff_eq!(u.unwrap(), array![[1., 0.], [0., -1.]], epsilon = 1e-7);
+    assert_abs_diff_eq!(vt.unwrap(), array![[1., 0.], [0., 1.]], epsilon = 1e-7);
+}

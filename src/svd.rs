@@ -434,7 +434,8 @@ impl<A: NdFloat, S: DataMut<Elem = A>> SVDInto for ArrayBase<S, Ix2> {
         calc_u: bool,
         calc_vt: bool,
     ) -> Result<(Option<Self::U>, Self::Sigma, Option<Self::Vt>)> {
-        svd(self, calc_u, calc_vt, A::from(1e-15).unwrap())
+        // epsilon = 1e-15 for f64
+        svd(self, calc_u, calc_vt, A::epsilon() * A::from(5.).unwrap())
     }
 }
 
@@ -464,7 +465,13 @@ impl<A: NdFloat, S: Data<Elem = A>> SVD for ArrayBase<S, Ix2> {
         calc_u: bool,
         calc_vt: bool,
     ) -> Result<(Option<Self::U>, Self::Sigma, Option<Self::Vt>)> {
-        svd(self.to_owned(), calc_u, calc_vt, A::from(1e-15).unwrap())
+        // epsilon = 1e-15 for f64
+        svd(
+            self.to_owned(),
+            calc_u,
+            calc_vt,
+            A::epsilon() * A::from(5.).unwrap(),
+        )
     }
 }
 

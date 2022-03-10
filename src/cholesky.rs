@@ -124,8 +124,8 @@ mod test {
         let lower = array![[5.0, 0.0, 0.0], [3.0, 3.0, 0.0], [-1., 1., 3.]];
 
         let chol = arr.cholesky().unwrap();
-        assert_abs_diff_eq!(chol, lower, epsilon = 1e-4);
-        assert_abs_diff_eq!(chol.dot(&chol.t()), arr, epsilon = 1e-4);
+        assert_abs_diff_eq!(chol, lower, epsilon = 1e-7);
+        assert_abs_diff_eq!(chol.dot(&chol.t()), arr, epsilon = 1e-7);
     }
 
     #[test]
