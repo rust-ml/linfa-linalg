@@ -482,12 +482,12 @@ pub trait SvdSort: Sized {
 
     /// Sort SVD decomposition by the singular values in descending order
     fn sort_svd_asc(self) -> Self {
-        self.sort_svd(true)
+        self.sort_svd(false)
     }
 
     /// Sort SVD decomposition by the singular values in ascending order
     fn sort_svd_desc(self) -> Self {
-        self.sort_svd(false)
+        self.sort_svd(true)
     }
 }
 
