@@ -8,7 +8,8 @@ mod common;
 
 fn run_svd_test(arr: Array2<f64>) {
     let (nrows, ncols) = arr.dim();
-    let (u, s, vt) = arr.svd(true, true).unwrap();
+    let decomp = arr.svd(true, true).unwrap();
+    let (u, s, vt) = decomp.clone();
     let (u, vt) = (u.unwrap(), vt.unwrap());
     assert!(s.iter().copied().all(f64::is_sign_positive));
 
@@ -37,6 +38,24 @@ fn run_svd_test(arr: Array2<f64>) {
     assert!(vt4.is_none());
     assert!(u4.is_none());
     assert_abs_diff_eq!(s4, s, epsilon = 1e-9);
+
+    // Check if sorted SVD is actually sorted ascending and equals original array
+    let (u, s, vt) = decomp.clone().sort_svd_asc();
+    assert!(s.windows(2).into_iter().all(|w| w[0] <= w[1]));
+    assert_abs_diff_eq!(
+        u.unwrap().dot(&Array2::from_diag(&s)).dot(&vt.unwrap()),
+        arr,
+        epsilon = 1e-7
+    );
+
+    // Same thing with descending sorted SVD
+    let (u, s, vt) = decomp.sort_svd_desc();
+    assert!(s.windows(2).into_iter().all(|w| w[0] >= w[1]));
+    assert_abs_diff_eq!(
+        u.unwrap().dot(&Array2::from_diag(&s)).dot(&vt.unwrap()),
+        arr,
+        epsilon = 1e-7
+    );
 }
 
 proptest! {
