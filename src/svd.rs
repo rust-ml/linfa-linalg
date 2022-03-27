@@ -4,7 +4,7 @@
 
 use std::ops::MulAssign;
 
-use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
+use ndarray::{s, Array1, Array2, ArrayBase, Axis, Data, DataMut, Ix2, NdFloat};
 
 use crate::{
     bidiagonal::Bidiagonal, eigh::wilkinson_shift, givens::GivensRotation, index::*, LinalgError,
@@ -475,6 +475,51 @@ impl<A: NdFloat, S: Data<Elem = A>> SVD for ArrayBase<S, Ix2> {
     }
 }
 
+/// Sorting of SVD decomposition by the singular values. Rearranges the columns of `U` and rows of
+/// `Vt` accordingly.
+pub trait SvdSort: Sized {
+    fn sort_svd(self, descending: bool) -> Self;
+
+    /// Sort SVD decomposition by the singular values in descending order
+    fn sort_svd_asc(self) -> Self {
+        self.sort_svd(false)
+    }
+
+    /// Sort SVD decomposition by the singular values in ascending order
+    fn sort_svd_desc(self) -> Self {
+        self.sort_svd(true)
+    }
+}
+
+/// Implemented on the output of the `SVD` traits
+impl<A: NdFloat> SvdSort for (Option<Array2<A>>, Array1<A>, Option<Array2<A>>) {
+    fn sort_svd(self, descending: bool) -> Self {
+        let (u, mut s, vt) = self;
+        let mut value_idx: Vec<_> = s.iter().copied().enumerate().collect();
+        if descending {
+            value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        } else {
+            value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        }
+
+        let apply_ordering = |arr: &Array2<A>, ax, ordering: &Vec<_>| {
+            let mut out = Array2::zeros(arr.dim()); // Could be uninit
+            for (out_idx, &(arr_idx, _)) in ordering.iter().enumerate() {
+                out.index_axis_mut(ax, out_idx)
+                    .assign(&arr.index_axis(ax, arr_idx));
+            }
+            out
+        };
+
+        let u = u.map(|u| apply_ordering(&u, Axis(1), &value_idx));
+        let vt = vt.map(|vt| apply_ordering(&vt, Axis(0), &value_idx));
+        s.iter_mut()
+            .zip(value_idx.iter())
+            .for_each(|(si, (_, f))| *si = *f);
+        (u, s, vt)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_abs_diff_eq;
@@ -484,10 +529,15 @@ mod tests {
 
     #[test]
     fn svd_test() {
-        let (u, s, vt) = svd(array![[3.0, 0.], [0., -2.]], true, true, 1e-15).unwrap();
+        let d = svd(array![[3.0, 0.], [0., -2.]], true, true, 1e-15).unwrap();
+        let (u, s, vt) = d.clone().sort_svd_desc();
         assert_abs_diff_eq!(s, array![3., 2.], epsilon = 1e-7);
         assert_abs_diff_eq!(u.unwrap(), array![[1., 0.], [0., -1.]], epsilon = 1e-7);
         assert_abs_diff_eq!(vt.unwrap(), array![[1., 0.], [0., 1.]], epsilon = 1e-7);
+        let (u, s, vt) = d.sort_svd_asc();
+        assert_abs_diff_eq!(s, array![2., 3.], epsilon = 1e-7);
+        assert_abs_diff_eq!(u.unwrap(), array![[0., 1.], [-1., 0.]], epsilon = 1e-7);
+        assert_abs_diff_eq!(vt.unwrap(), array![[0., 1.], [1., 0.]], epsilon = 1e-7);
 
         let (u, s, vt) = svd(array![[1., 0., -1.], [-2., 1., 4.]], false, false, 1e-15).unwrap();
         assert_abs_diff_eq!(s, array![0.51371, 4.76824], epsilon = 1e-5);
@@ -496,23 +546,23 @@ mod tests {
     }
 
     fn test_svd_props(a: Array2<f64>, exp_s: Array1<f64>) {
-        let (u, s, vt) = svd(a.clone(), true, true, 1e-15).unwrap();
+        let (u, s, vt) = svd(a.clone(), true, true, 1e-15).unwrap().sort_svd_desc();
         let (u, vt) = (u.unwrap(), vt.unwrap());
         assert_abs_diff_eq!(s, exp_s, epsilon = 1e-5);
         assert!(s.iter().copied().all(f64::is_sign_positive));
         assert_abs_diff_eq!(u.dot(&Array2::from_diag(&s)).dot(&vt), a, epsilon = 1e-5);
 
-        let (u2, s2, vt2) = svd(a.clone(), false, true, 1e-15).unwrap();
+        let (u2, s2, vt2) = svd(a.clone(), false, true, 1e-15).unwrap().sort_svd_desc();
         assert!(u2.is_none());
         assert_abs_diff_eq!(s2, s, epsilon = 1e-9);
         assert_abs_diff_eq!(vt2.unwrap(), vt, epsilon = 1e-9);
 
-        let (u3, s3, vt3) = svd(a.clone(), true, false, 1e-15).unwrap();
+        let (u3, s3, vt3) = svd(a.clone(), true, false, 1e-15).unwrap().sort_svd_desc();
         assert!(vt3.is_none());
         assert_abs_diff_eq!(s3, s, epsilon = 1e-9);
         assert_abs_diff_eq!(u3.unwrap(), u, epsilon = 1e-9);
 
-        let (u4, s4, vt4) = svd(a, false, false, 1e-15).unwrap();
+        let (u4, s4, vt4) = svd(a, false, false, 1e-15).unwrap().sort_svd_desc();
         assert!(vt4.is_none());
         assert!(u4.is_none());
         assert_abs_diff_eq!(s4, s, epsilon = 1e-9);
@@ -524,7 +574,7 @@ mod tests {
         test_svd_props(array![[1., 1.], [1., 1.]], array![2., 0.]);
         test_svd_props(
             array![[-3., 4.], [4.3, 2.1], [6.6, 8.7]],
-            array![5.2633658, 11.80876],
+            array![11.80876, 5.2633658],
         );
         test_svd_props(
             array![
@@ -533,7 +583,7 @@ mod tests {
                 [-22.772715014220207, -1.4554372570788008, 18.108113992170573]
             ]
             .reversed_axes(),
-            array![2.23811978e+01, 3.16188022e+01, 0.],
+            array![3.16188022e+01, 2.23811978e+01, 0.],
         );
     }
 
