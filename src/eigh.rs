@@ -266,6 +266,63 @@ impl<A: NdFloat, S: Data<Elem = A>> EigValsh for ArrayBase<S, Ix2> {
     }
 }
 
+/// Sorting of eigendecomposition by the eigenvalues.
+///
+/// ## Panic
+///
+/// Will panic if shape or layout of inputs differ from eigen output, or if input contains NaN.
+pub trait EigSort: Sized {
+    fn sort_eig(self, descending: bool) -> Self;
+
+    /// Sort eigendecomposition by the eigenvalues in ascending order
+    fn sort_eig_asc(self) -> Self {
+        self.sort_eig(false)
+    }
+
+    /// Sort eigendecomposition by the eigenvalues in descending order
+    fn sort_eig_desc(self) -> Self {
+        self.sort_eig(true)
+    }
+}
+
+/// Implementation on output of `EigValsh` traits
+impl<A: NdFloat> EigSort for Array1<A> {
+    fn sort_eig(mut self, descending: bool) -> Self {
+        // Panics on non-standard layouts, which is fine because our eigenvals have standard layout
+        let slice = self.as_slice_mut().unwrap();
+        // Panic only happens with NaN values
+        if descending {
+            slice.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        } else {
+            slice.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        }
+        self
+    }
+}
+
+/// Implementation on output of `Eigh` traits
+impl<A: NdFloat> EigSort for (Array1<A>, Array2<A>) {
+    fn sort_eig(self, descending: bool) -> Self {
+        let (mut vals, vecs) = self;
+        let mut value_idx: Vec<_> = vals.iter().copied().enumerate().collect();
+        // Panic only happens with NaN values
+        if descending {
+            value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        } else {
+            value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        }
+
+        let mut out = Array2::zeros(vecs.dim());
+        for (out_idx, &(arr_idx, _)) in value_idx.iter().enumerate() {
+            out.column_mut(out_idx).assign(&vecs.column(arr_idx));
+        }
+        vals.iter_mut()
+            .zip(value_idx.iter())
+            .for_each(|(si, (_, f))| *si = *f);
+        (vals, out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_abs_diff_eq;
@@ -305,14 +362,15 @@ mod tests {
             f64::EPSILON,
         )
         .unwrap();
-        assert_abs_diff_eq!(vals, array![16.28378, -3.41558, -6.86819], epsilon = 1e-5);
+        let vals = vals.sort_eig_asc();
+        assert_abs_diff_eq!(vals, array![-6.86819, -3.41558, 16.28378], epsilon = 1e-5);
         assert_eq!(vecs, None);
     }
 
     fn test_eigvecs(a: Array2<f64>, exp_vals: Array1<f64>) {
         let n = a.nrows();
         let (vals, vecs) = symmetric_eig(a.clone(), true, f64::EPSILON).unwrap();
-        let vecs = vecs.unwrap();
+        let (vals, vecs) = (vals, vecs.unwrap()).sort_eig_desc();
         assert_abs_diff_eq!(vals, exp_vals, epsilon = 1e-5);
 
         let s = vecs.t().dot(&vecs);
