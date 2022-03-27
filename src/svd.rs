@@ -477,15 +477,19 @@ impl<A: NdFloat, S: Data<Elem = A>> SVD for ArrayBase<S, Ix2> {
 
 /// Sorting of SVD decomposition by the singular values. Rearranges the columns of `U` and rows of
 /// `Vt` accordingly.
+///
+/// ## Panic
+///
+/// Will panic if shape of inputs differs from shape of SVD output, or if input contains NaN.
 pub trait SvdSort: Sized {
     fn sort_svd(self, descending: bool) -> Self;
 
-    /// Sort SVD decomposition by the singular values in descending order
+    /// Sort SVD decomposition by the singular values in ascending order
     fn sort_svd_asc(self) -> Self {
         self.sort_svd(false)
     }
 
-    /// Sort SVD decomposition by the singular values in ascending order
+    /// Sort SVD decomposition by the singular values in descending order
     fn sort_svd_desc(self) -> Self {
         self.sort_svd(true)
     }
@@ -496,15 +500,16 @@ impl<A: NdFloat> SvdSort for (Option<Array2<A>>, Array1<A>, Option<Array2<A>>) {
     fn sort_svd(self, descending: bool) -> Self {
         let (u, mut s, vt) = self;
         let mut value_idx: Vec<_> = s.iter().copied().enumerate().collect();
+        // Panic only happens with NaN values
         if descending {
             value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         } else {
             value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         }
 
-        let apply_ordering = |arr: &Array2<A>, ax, ordering: &Vec<_>| {
+        let apply_ordering = |arr: &Array2<A>, ax, values_idx: &Vec<_>| {
             let mut out = Array2::zeros(arr.dim()); // Could be uninit
-            for (out_idx, &(arr_idx, _)) in ordering.iter().enumerate() {
+            for (out_idx, &(arr_idx, _)) in values_idx.iter().enumerate() {
                 out.index_axis_mut(ax, out_idx)
                     .assign(&arr.index_axis(ax, arr_idx));
             }
