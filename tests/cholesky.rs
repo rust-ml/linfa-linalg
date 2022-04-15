@@ -18,6 +18,13 @@ prop_compose! {
     }
 }
 
+prop_compose! {
+    fn semi_pd_arr()
+        (arr in common::square_arr()) -> Array2<f64> {
+        arr.t().dot(&arr)
+    }
+}
+
 fn run_cholesky_test(orig: Array2<f64>) {
     let chol = orig.cholesky().unwrap();
     assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = 1e-7);
@@ -57,6 +64,11 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
     fn cholesky_test(arr in hpd_arr()) {
+        run_cholesky_test(arr)
+    }
+
+    #[test]
+    fn cholesky_test_semi_pd(arr in semi_pd_arr()) {
         run_cholesky_test(arr)
     }
 }
