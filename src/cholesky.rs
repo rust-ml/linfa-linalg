@@ -220,6 +220,12 @@ mod test {
             non_pd.solvec(&Array2::zeros((2, 3))),
             Err(LinalgError::NotPositiveDefinite)
         ));
+
+        let zeros = array![[0., 0.], [0., 0.]];
+        assert!(matches!(
+            zeros.cholesky(),
+            Err(LinalgError::NotPositiveDefinite)
+        ));
     }
 
     #[test]
@@ -247,8 +253,10 @@ mod test {
     fn corner_cases() {
         let empty = Array2::<f64>::zeros((0, 0));
         assert_eq!(empty.cholesky().unwrap(), empty);
+        assert_eq!(empty.clone().invc().unwrap(), empty);
 
         let one = array![[1.]];
         assert_eq!(one.cholesky().unwrap(), one);
+        assert_eq!(one.clone().invc().unwrap(), one);
     }
 }
