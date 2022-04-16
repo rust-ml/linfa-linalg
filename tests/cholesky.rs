@@ -60,6 +60,14 @@ fn run_cholesky_test(orig: Array2<f64>) {
     );
 }
 
+fn run_solvec_test(mut a: Array2<f64>, x: Array2<f64>) {
+    let mut b = a.dot(&x);
+
+    assert_abs_diff_eq!(a.clone().solvec(&b).unwrap(), x, epsilon = 1e-5);
+    assert_abs_diff_eq!(a.clone().solvec_into(b.clone()).unwrap(), x, epsilon = 1e-5);
+    assert_abs_diff_eq!(*a.solvec_inplace(&mut b).unwrap(), x, epsilon = 1e-5);
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
@@ -70,6 +78,16 @@ proptest! {
     #[test]
     fn cholesky_test_semi_pd(arr in semi_pd_arr()) {
         run_cholesky_test(arr)
+    }
+
+    #[test]
+    fn solvec_test((a, x) in common::system_of_arr(hpd_arr())) {
+        run_solvec_test(a, x)
+    }
+
+    #[test]
+    fn solvec_test_semi_pd((a, x) in common::system_of_arr(semi_pd_arr())) {
+        run_solvec_test(a, x)
     }
 }
 

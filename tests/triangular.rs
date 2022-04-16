@@ -6,17 +6,17 @@ use ndarray_linalg_rs::triangular::*;
 
 mod common;
 
-prop_compose! {
-    fn tri_system(uplo: UPLO)(a in common::square_arr(), cols in common::DIM_RANGE)
-        (x in common::matrix(a.nrows(), cols), a in Just(a)) -> (Array2<f64>, Array2<f64>) {
+fn tri_system(uplo: UPLO) -> impl Strategy<Value = (Array2<f64>, Array2<f64>)> {
+    let squares = common::square_arr().prop_map(move |a| {
         let mut a = a.into_triangular(uplo).unwrap();
         for e in a.diag_mut() {
             if e.abs() < 1.0 {
                 *e = 1.0;
             }
         }
-        (a, x)
-    }
+        a
+    });
+    common::system_of_arr(squares)
 }
 
 fn run_solve_triangular_test(a: Array2<f64>, x: Array2<f64>, uplo: UPLO) {
