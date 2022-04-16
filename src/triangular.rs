@@ -92,12 +92,14 @@ where
 
 #[inline]
 /// Generalized implementation for both upper and lower triangular solvers.
-/// Ensure that the diagonal of `a` is non-zero, otherwise output will be wrong.
-fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix2>>(
+/// Index passed into `diag_fn` is guaranteed to be within the bounds of `MIN(a.nrows, a.ncols)`.
+/// Ensure that the return of `diag_fn` is non-zero, otherwise output will be wrong.
+pub(crate) fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix2>>(
     a: &ArrayBase<impl Data<Elem = A>, Ix2>,
     b: &mut ArrayBase<impl DataMut<Elem = A>, Ix2>,
     row_iter_fn: impl Fn(usize) -> I,
     row_slice_fn: impl Fn(usize, usize) -> S,
+    diag_fn: impl Fn(usize) -> A,
 ) -> Result<()> {
     let rows = check_square(a)?;
     if b.nrows() != rows {
@@ -114,7 +116,7 @@ fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix
         for i in row_iter_fn(rows) {
             let coeff;
             unsafe {
-                let diag = *a.at((i, i));
+                let diag = diag_fn(i);
                 coeff = *b.at((i, k)) / diag;
                 *b.atm((i, k)) = coeff;
             }
@@ -148,9 +150,21 @@ impl<A: NdFloat, Si: Data<Elem = A>, So: DataMut<Elem = A>>
         uplo: UPLO,
     ) -> Result<&'a mut ArrayBase<So, Ix2>> {
         if uplo == UPLO::Upper {
-            solve_triangular_system(self, b, |rows| (0..rows).rev(), |r, c| s![..r, c])?;
+            solve_triangular_system(
+                self,
+                b,
+                |rows| (0..rows).rev(),
+                |r, c| s![..r, c],
+                |i| unsafe { *self.at((i, i)) },
+            )?;
         } else {
-            solve_triangular_system(self, b, |rows| (0..rows), |r, c| s![r + 1.., c])?;
+            solve_triangular_system(
+                self,
+                b,
+                |rows| (0..rows),
+                |r, c| s![r + 1.., c],
+                |i| unsafe { *self.at((i, i)) },
+            )?;
         }
         Ok(b)
     }

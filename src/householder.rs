@@ -78,7 +78,7 @@ pub fn assemble_q<A: NdFloat, S: Data<Elem = A>>(
         Array2::eye(nrows)
     } else {
         let mut a = Array2::zeros((nrows, dim));
-        a.diag_mut().add_assign(A::one());
+        a.diag_mut().fill(A::one());
         a
     };
 
