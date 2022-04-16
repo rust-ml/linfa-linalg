@@ -82,8 +82,8 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         (q, self.into_r())
     }
 
-    /// Multiplies `b` by transpose of `Q` matrix.
-    /// Panics of `b` has wrong shape
+    /// Performs `Q.t * b` in place, without actually producing `Q`
+    /// Panics if `b` has wrong shape
     fn qt_mul<Si: DataMut<Elem = A>>(&self, b: &mut ArrayBase<Si, Ix2>) {
         let dim = self.diag.len();
         for i in 0..dim {
@@ -179,5 +179,16 @@ mod tests {
             Array2::<f64>::eye(2).qr_into().unwrap().inverse().unwrap(),
             Array2::eye(2)
         );
+    }
+
+    #[test]
+    fn qt_mul() {
+        let a = array![[1., 9.80], [-7., 3.3]];
+        let mut b = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]];
+        let qr = a.qr_into().unwrap();
+
+        let res = qr.q().t().dot(&b);
+        qr.qt_mul(&mut b);
+        assert_abs_diff_eq!(b, res, epsilon = 1e-7);
     }
 }
