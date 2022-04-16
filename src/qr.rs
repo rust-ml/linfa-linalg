@@ -92,7 +92,7 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
 
             let mut rows = b.slice_mut(s![i.., ..]);
             refl.reflect_cols(&mut rows);
-            rows *= self.diag[i];
+            rows *= self.diag[i].signum();
         }
     }
 
@@ -103,7 +103,7 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
             b,
             |rows| (0..rows).rev(),
             |r, c| s![..r, c],
-            |i| unsafe { *self.diag.at(i) },
+            |i| unsafe { self.diag.at(i).abs() },
         )
     }
 
@@ -141,5 +141,43 @@ mod tests {
             epsilon = 1e-5
         );
         assert_abs_diff_eq!(r, array![[5.594, 6.391], [0., 5.725]], epsilon = 1e-3);
+
+        let zeros = Array2::<f64>::zeros((2, 2));
+        let (q, r) = zeros.qr().unwrap().into_decomp();
+        assert_abs_diff_eq!(q, Array2::eye(2));
+        assert_abs_diff_eq!(r, zeros);
+    }
+
+    #[test]
+    fn solve() {
+        let a = array![[1., 9.80], [-7., 3.3]];
+        let x = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]];
+        let b = a.dot(&x);
+        let sol = a.qr_into().unwrap().solve(&b).unwrap();
+        assert_abs_diff_eq!(sol, x, epsilon = 1e-5);
+
+        assert_abs_diff_eq!(
+            Array2::<f64>::eye(2)
+                .qr_into()
+                .unwrap()
+                .solve(&Array2::zeros((2, 3)))
+                .unwrap(),
+            Array2::zeros((2, 3))
+        )
+    }
+
+    #[test]
+    fn inverse() {
+        let a = array![[1., 9.80], [-7., 3.3]];
+        assert_abs_diff_eq!(
+            a.qr_into().unwrap().inverse().unwrap(),
+            array![[0.04589, -0.1363], [0.09735, 0.0139]],
+            epsilon = 1e-4
+        );
+
+        assert_abs_diff_eq!(
+            Array2::<f64>::eye(2).qr_into().unwrap().inverse().unwrap(),
+            Array2::eye(2)
+        );
     }
 }
