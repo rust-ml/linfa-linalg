@@ -150,6 +150,22 @@ impl<A: NdFloat, Si: DataMut<Elem = A>, So: Data<Elem = A>> SolveC<ArrayBase<So,
     }
 }
 
+pub trait InverseC {
+    type Output;
+
+    fn invc(&mut self) -> Result<Self::Output>;
+}
+
+impl<A: NdFloat, S: DataMut<Elem = A>> InverseC for ArrayBase<S, Ix2> {
+    type Output = Array2<A>;
+
+    fn invc(&mut self) -> Result<Self::Output> {
+        let eye = Array2::eye(self.nrows());
+        let res = self.solvec_into(eye)?;
+        Ok(res)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
@@ -169,15 +185,25 @@ mod test {
 
     #[test]
     fn bad_matrix() {
-        let row = array![[1., 2., 3.], [3., 4., 5.]];
+        let mut row = array![[1., 2., 3.], [3., 4., 5.]];
         assert!(matches!(
             row.cholesky(),
             Err(LinalgError::NotSquare { rows: 2, cols: 3 })
         ));
+        assert!(matches!(
+            row.solvec(&Array2::zeros((2, 3))),
+            Err(LinalgError::NotSquare { rows: 2, cols: 3 })
+        ));
 
-        let non_pd = array![[1., 2.], [2., 1.]];
-        let res = non_pd.cholesky_into();
-        assert!(matches!(res, Err(LinalgError::NotPositiveDefinite)));
+        let mut non_pd = array![[1., 2.], [2., 1.]];
+        assert!(matches!(
+            non_pd.cholesky(),
+            Err(LinalgError::NotPositiveDefinite)
+        ));
+        assert!(matches!(
+            non_pd.solvec(&Array2::zeros((2, 3))),
+            Err(LinalgError::NotPositiveDefinite)
+        ));
     }
 
     #[test]
@@ -192,6 +218,13 @@ mod test {
 
         let out = arr.solvec(&b).unwrap();
         assert_abs_diff_eq!(out, x, epsilon = 1e-7);
+    }
+
+    #[test]
+    fn invc() {
+        let arr = array![[25., 15., -5.], [15., 18., 0.], [-5., 0., 11.]];
+        let inv = arr.clone().invc().unwrap();
+        assert_abs_diff_eq!(arr.dot(&inv), Array2::eye(3));
     }
 
     #[test]
