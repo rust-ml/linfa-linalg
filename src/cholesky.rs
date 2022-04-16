@@ -64,7 +64,7 @@ where
                 d = *self.at((j, j)) - d;
             }
 
-            if d < A::zero() {
+            if d <= A::zero() {
                 return Err(LinalgError::NotPositiveDefinite);
             }
 

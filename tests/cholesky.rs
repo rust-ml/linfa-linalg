@@ -18,13 +18,6 @@ prop_compose! {
     }
 }
 
-prop_compose! {
-    fn semi_pd_arr()
-        (arr in common::square_arr()) -> Array2<f64> {
-        arr.t().dot(&arr)
-    }
-}
-
 fn run_cholesky_test(orig: Array2<f64>) {
     let chol = orig.cholesky().unwrap();
     assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = 1e-7);
@@ -68,15 +61,15 @@ fn run_solvec_test(mut a: Array2<f64>, x: Array2<f64>) {
     assert_abs_diff_eq!(*a.solvec_inplace(&mut b).unwrap(), x, epsilon = 1e-5);
 }
 
+fn run_invc_test(a: Array2<f64>) {
+    let inv = a.clone().invc().unwrap();
+    assert_abs_diff_eq!(a.dot(&inv), Array2::eye(a.nrows()), epsilon = 1e-7);
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
     fn cholesky_test(arr in hpd_arr()) {
-        run_cholesky_test(arr)
-    }
-
-    #[test]
-    fn cholesky_test_semi_pd(arr in semi_pd_arr()) {
         run_cholesky_test(arr)
     }
 
@@ -86,8 +79,8 @@ proptest! {
     }
 
     #[test]
-    fn solvec_test_semi_pd((a, x) in common::system_of_arr(semi_pd_arr())) {
-        run_solvec_test(a, x)
+    fn invc_test(arr in hpd_arr()) {
+        run_invc_test(arr)
     }
 }
 
