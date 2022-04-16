@@ -3,11 +3,11 @@
 use crate::{
     check_square,
     index::*,
-    triangular::{IntoTriangular, UPLO},
+    triangular::{IntoTriangular, SolveTriangularInplace, UPLO},
     LinalgError, Result,
 };
 
-use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
+use ndarray::{Array, Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
 /// Cholesky decomposition of a positive definite matrix
 pub trait CholeskyInplace {
@@ -111,6 +111,45 @@ where
     }
 }
 
+pub trait SolveCInplace<B> {
+    fn solvec_inplace<'a>(&mut self, b: &'a mut B) -> Result<&'a mut B>;
+
+    fn solvec_into(&mut self, mut b: B) -> Result<B> {
+        self.solvec_inplace(&mut b)?;
+        Ok(b)
+    }
+}
+
+impl<A: NdFloat, Si: DataMut<Elem = A>, So: DataMut<Elem = A>> SolveCInplace<ArrayBase<So, Ix2>>
+    for ArrayBase<Si, Ix2>
+{
+    fn solvec_inplace<'a>(
+        &mut self,
+        b: &'a mut ArrayBase<So, Ix2>,
+    ) -> Result<&'a mut ArrayBase<So, Ix2>> {
+        let chol = self.cholesky_inplace_dirty()?;
+        chol.solve_triangular_inplace(b, UPLO::Lower)?;
+        chol.t().solve_triangular_inplace(b, UPLO::Upper)?;
+        Ok(b)
+    }
+}
+
+pub trait SolveC<B> {
+    type Output;
+
+    fn solvec(&mut self, b: &B) -> Result<Self::Output>;
+}
+
+impl<A: NdFloat, Si: DataMut<Elem = A>, So: Data<Elem = A>> SolveC<ArrayBase<So, Ix2>>
+    for ArrayBase<Si, Ix2>
+{
+    type Output = Array<A, Ix2>;
+
+    fn solvec(&mut self, b: &ArrayBase<So, Ix2>) -> Result<Self::Output> {
+        self.solvec_into(b.to_owned())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
@@ -139,6 +178,20 @@ mod test {
         let non_pd = array![[1., 2.], [2., 1.]];
         let res = non_pd.cholesky_into();
         assert!(matches!(res, Err(LinalgError::NotPositiveDefinite)));
+    }
+
+    #[test]
+    fn solvec() {
+        let mut arr = array![[25., 15., -5.], [15., 18., 0.], [-5., 0., 11.]];
+        let x = array![
+            [10., -3., 2.2, 4.],
+            [0., 2.4, -0.9, 1.1],
+            [5.5, 7.6, 8.1, 10.]
+        ];
+        let b = arr.dot(&x);
+
+        let out = arr.solvec(&b).unwrap();
+        assert_abs_diff_eq!(out, x, epsilon = 1e-7);
     }
 
     #[test]
