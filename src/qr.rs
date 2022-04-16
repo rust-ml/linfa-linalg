@@ -1,8 +1,8 @@
 use crate::{
-    householder,
+    check_square, householder,
     index::UncheckedIndex,
     reflection::Reflection,
-    triangular::{self, IntoTriangular, UPLO},
+    triangular::{self, IntoTriangular, SolveTriangularInplace, UPLO},
     LinalgError, Result,
 };
 
@@ -82,11 +82,13 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         (q, self.into_r())
     }
 
-    /// Performs `Q.t * b` in place, without actually producing `Q`
-    /// Panics if `b` has wrong shape
+    /// Performs `Q.t * b` in place, without actually producing `Q`.
+    ///
+    /// `b` must have at least R rows, although the output will only reside in the first C rows of
+    /// `b` (R and C are the dimensions of the decomposed matrix).
     fn qt_mul<Si: DataMut<Elem = A>>(&self, b: &mut ArrayBase<Si, Ix2>) {
-        let dim = self.diag.len();
-        for i in 0..dim {
+        let cols = self.qr.ncols();
+        for i in 0..cols {
             let axis = self.qr.slice(s![i.., i]);
             let refl = Reflection::new(axis, A::zero());
 
@@ -96,27 +98,38 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         }
     }
 
-    pub fn solve_inplace<Si: DataMut<Elem = A>>(&self, b: &mut ArrayBase<Si, Ix2>) -> Result<()> {
-        self.qt_mul(b);
+    pub fn solve_into<Si: DataMut<Elem = A>>(
+        &self,
+        mut b: ArrayBase<Si, Ix2>,
+    ) -> Result<ArrayBase<Si, Ix2>> {
+        if self.qr.nrows() != b.nrows() {
+            return Err(LinalgError::WrongRows {
+                expected: self.qr.nrows(),
+                actual: b.nrows(),
+            });
+        }
+
+        self.qt_mul(&mut b);
+        let ncols = self.qr.ncols();
+        let mut b = b.slice_move(s![..ncols, ..]);
+
         triangular::solve_triangular_system(
-            &self.qr,
-            b,
+            &self.qr.slice(s![..ncols, ..ncols]),
+            &mut b,
             |rows| (0..rows).rev(),
             |r, c| s![..r, c],
             |i| unsafe { self.diag.at(i).abs() },
-        )
-    }
-
-    pub fn solve<Si: Data<Elem = A>>(&self, b: &ArrayBase<Si, Ix2>) -> Result<Array2<A>> {
-        let mut b = b.to_owned();
-        self.solve_inplace(&mut b)?;
+        )?;
         Ok(b)
     }
 
+    pub fn solve<Si: Data<Elem = A>>(&self, b: &ArrayBase<Si, Ix2>) -> Result<Array2<A>> {
+        self.solve_into(b.to_owned())
+    }
+
     pub fn inverse(&self) -> Result<Array2<A>> {
-        let mut res = Array2::eye(self.diag.len());
-        self.solve_inplace(&mut res)?;
-        Ok(res)
+        check_square(&self.qr)?;
+        self.solve_into(Array2::eye(self.diag.len()))
     }
 }
 
@@ -163,7 +176,14 @@ mod tests {
                 .solve(&Array2::zeros((2, 3)))
                 .unwrap(),
             Array2::zeros((2, 3))
-        )
+        );
+
+        // Test with non-square matrix
+        let a = array![[3.2, 1.3], [4.4, 5.2], [1.3, 6.7]];
+        let x = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]];
+        let b = a.dot(&x);
+        let sol = a.qr_into().unwrap().solve(&b).unwrap();
+        assert_abs_diff_eq!(sol, x, epsilon = 1e-5);
     }
 
     #[test]
@@ -186,9 +206,16 @@ mod tests {
         let a = array![[1., 9.80], [-7., 3.3]];
         let mut b = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]];
         let qr = a.qr_into().unwrap();
-
         let res = qr.q().t().dot(&b);
         qr.qt_mul(&mut b);
         assert_abs_diff_eq!(b, res, epsilon = 1e-7);
+
+        // Test with non-square matrix
+        let arr = array![[3.2, 1.3], [4.4, 5.2], [1.3, 6.7]];
+        let qr = arr.qr_into().unwrap();
+        let mut b = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]].reversed_axes();
+        let res = qr.q().t().dot(&b);
+        qr.qt_mul(&mut b);
+        assert_abs_diff_eq!(b.slice(s![..2, ..2]), res, epsilon = 1e-7);
     }
 }
