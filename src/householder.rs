@@ -1,5 +1,3 @@
-use std::ops::AddAssign;
-
 use ndarray::{s, Array2, ArrayBase, Data, DataMut, Ix1, Ix2, NdFloat};
 
 use crate::reflection::Reflection;
@@ -70,7 +68,7 @@ pub fn clear_row<A: NdFloat>(
 pub fn assemble_q<A: NdFloat, S: Data<Elem = A>>(
     matrix: &ArrayBase<S, Ix2>,
     shift: usize,
-    sign_fn: impl Fn(usize) -> A,
+    diag_fn: impl Fn(usize) -> A,
 ) -> Array2<A> {
     let (nrows, ncols) = matrix.dim();
     let dim = nrows.min(ncols);
@@ -88,7 +86,7 @@ pub fn assemble_q<A: NdFloat, S: Data<Elem = A>>(
 
         let mut res_rows = res.slice_mut(s![i + shift.., i..]);
         refl.reflect_cols(&mut res_rows);
-        res_rows *= sign_fn(i);
+        res_rows *= diag_fn(i).signum();
     }
 
     res

@@ -88,7 +88,7 @@ impl<A: Clone, S: DataMut<Elem = A> + RawDataClone> Clone for TridiagonalDecomp<
 impl<A: NdFloat, S: DataMut<Elem = A>> TridiagonalDecomp<A, S> {
     /// Construct the orthogonal matrix `Q`, where `Q * T * Q.t` results in the original matrix
     pub fn generate_q(&self) -> Array2<A> {
-        householder::assemble_q(&self.diag_matrix, 1, |i| self.off_diagonal[i].signum())
+        householder::assemble_q(&self.diag_matrix, 1, |i| self.off_diagonal[i])
     }
 
     /// Return the diagonal elements and off-diagonal elements of the tridiagonal matrix as 1D

@@ -32,6 +32,9 @@ pub enum LinalgError {
     /// Non-square matrix
     #[error("Matrix of ({rows}, {cols}) is not square")]
     NotSquare { rows: usize, cols: usize },
+    /// Matrix rows less than columns
+    #[error("Expected matrix rows({rows}) >= cols({cols})")]
+    NotTall { rows: usize, cols: usize },
     /// Non-positive definite matrix
     #[error("Matrix is not positive definite")]
     NotPositiveDefinite,
