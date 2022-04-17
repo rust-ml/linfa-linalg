@@ -8,9 +8,13 @@ use crate::{
 
 use ndarray::{prelude::*, Data, DataMut, OwnedRepr, RawDataClone};
 
+/// QR decomposition for matrix by value
 pub trait QRInto {
     type Decomp;
 
+    /// Decomposes the matrix into semi-orthogonal matrix `Q` and upper-triangular matrix `R`, such
+    /// that `Q * R` yields the original matrix. Matrix rows must be equal or greater than number
+    /// of columns.
     fn qr_into(self) -> Result<Self::Decomp>;
 }
 
@@ -32,9 +36,13 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRInto for ArrayBase<S, Ix2> {
     }
 }
 
+/// QR decomposition for matrix by reference
 pub trait QR {
     type Decomp;
 
+    /// Decomposes the matrix into semi-orthogonal matrix `Q` and upper-triangular matrix `R`, such
+    /// that `Q * R` yields the original matrix. Matrix rows must be equal or greater than number
+    /// of columns.
     fn qr(&self) -> Result<Self::Decomp>;
 }
 
@@ -47,6 +55,8 @@ impl<A: NdFloat, S: Data<Elem = A>> QR for ArrayBase<S, Ix2> {
 }
 
 #[derive(Debug)]
+/// Compact representation of a QR decomposition. Can be used to yield the `Q` and `R` matrices or
+/// to calculate the inverse or solve a system.
 pub struct QRDecomp<A, S: DataMut<Elem = A>> {
     // qr must be a "tall" matrix (rows >= cols)
     qr: ArrayBase<S, Ix2>,
@@ -64,10 +74,12 @@ impl<A: Clone, S: DataMut<Elem = A> + RawDataClone> Clone for QRDecomp<A, S> {
 }
 
 impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
-    pub fn q(&self) -> Array2<A> {
+    /// Generate semi-orthogonal `Q` matrix
+    pub fn generate_q(&self) -> Array2<A> {
         householder::assemble_q(&self.qr, 0, |i| self.diag[i])
     }
 
+    /// Consumes `self` to generate the upper-triangular `R` matrix
     pub fn into_r(self) -> ArrayBase<S, Ix2> {
         let ncols = self.qr.ncols();
         let mut r = self.qr.slice_move(s![..ncols, ..ncols]);
@@ -77,8 +89,9 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         r
     }
 
+    /// Generate both `Q` and `R`
     pub fn into_decomp(self) -> (Array2<A>, ArrayBase<S, Ix2>) {
-        let q = self.q();
+        let q = self.generate_q();
         (q, self.into_r())
     }
 
@@ -98,7 +111,8 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         }
     }
 
-    /// Solves `self * x = b`.
+    /// Solves `A * x = b`, where `A` is the original matrix. Used to calculate least squares for
+    /// "thin" matrices (rows >= cols).
     pub fn solve_into<Si: DataMut<Elem = A>>(
         &self,
         mut b: ArrayBase<Si, Ix2>,
@@ -129,7 +143,8 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         Ok(b)
     }
 
-    /// Solves `self.t * x = b`.
+    /// Solves `A.t * x = b`, where `A` is the original matrix. Used to calculate least squares for
+    /// "wide" matrices (rows < cols).
     pub fn solve_tr_into<Si: DataMut<Elem = A>>(
         &self,
         mut b: ArrayBase<Si, Ix2>,
@@ -154,31 +169,37 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         )?;
 
         // XXX Could implement a non-transpose version of qt_mul to reduce allocations
-        Ok(self.q().dot(&b))
+        Ok(self.generate_q().dot(&b))
     }
 
+    /// Solves `A * x = b`, where `A` is the original matrix.
     pub fn solve<Si: Data<Elem = A>>(&self, b: &ArrayBase<Si, Ix2>) -> Result<Array2<A>> {
         self.solve_into(b.to_owned())
     }
 
+    /// Solves `A.t * x = b`, where `A` is the original matrix.
     pub fn solve_tr<Si: Data<Elem = A>>(&self, b: &ArrayBase<Si, Ix2>) -> Result<Array2<A>> {
         self.solve_tr_into(b.to_owned())
     }
 
+    /// Checks if original matrix is invertible.
     pub fn is_invertible(&self) -> bool {
         // No zeros in the diagonal
         self.diag.iter().all(|f| !f.is_zero())
     }
 
+    /// Produce the inverse of the original matrix, if it's invertible.
     pub fn inverse(&self) -> Result<Array2<A>> {
         check_square(&self.qr)?;
         self.solve_into(Array2::eye(self.diag.len()))
     }
 }
 
+/// Use QR decomposition to calculate least squares by value
 pub trait LeastSquaresQrInto<B> {
     type Output;
 
+    /// Find solution to `A * x = b` such that `||A * x - b||^2` is minimized
     fn least_squares_into(self, b: B) -> Result<Self::Output>;
 }
 
@@ -199,9 +220,12 @@ impl<A: NdFloat, Si: DataMut<Elem = A>, So: DataMut<Elem = A>>
     }
 }
 
+/// Use QR decomposition to calculate least squares by reference. The `A` matrix is still passed by
+/// value.
 pub trait LeastSquaresQr<B> {
     type Output;
 
+    /// Find solution to `A * x = b` such that `||A * x - b||^2` is minimized
     fn least_squares(self, b: &B) -> Result<Self::Output>;
 }
 
@@ -333,7 +357,7 @@ mod tests {
         let a = array![[1., 9.80], [-7., 3.3]];
         let mut b = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]];
         let qr = a.qr_into().unwrap();
-        let res = qr.q().t().dot(&b);
+        let res = qr.generate_q().t().dot(&b);
         qr.qt_mul(&mut b);
         assert_abs_diff_eq!(b, res, epsilon = 1e-7);
 
@@ -341,7 +365,7 @@ mod tests {
         let arr = array![[3.2, 1.3], [4.4, 5.2], [1.3, 6.7]];
         let qr = arr.qr_into().unwrap();
         let mut b = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]].reversed_axes();
-        let res = qr.q().t().dot(&b);
+        let res = qr.generate_q().t().dot(&b);
         qr.qt_mul(&mut b);
         assert_abs_diff_eq!(b.slice(s![..2, ..2]), res, epsilon = 1e-7);
     }
