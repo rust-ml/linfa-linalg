@@ -2,7 +2,7 @@ use crate::{
     check_square, householder,
     index::UncheckedIndex,
     reflection::Reflection,
-    triangular::{self, IntoTriangular, SolveTriangularInplace, UPLO},
+    triangular::{self, IntoTriangular, UPLO},
     LinalgError, Result,
 };
 
@@ -98,6 +98,7 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         }
     }
 
+    /// Solves `self * x = b`.
     pub fn solve_into<Si: DataMut<Elem = A>>(
         &self,
         mut b: ArrayBase<Si, Ix2>,
@@ -109,22 +110,53 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
             });
         }
 
+        // Calculate Q.t * b and extract the result
         self.qt_mul(&mut b);
         let ncols = self.qr.ncols();
         let mut b = b.slice_move(s![..ncols, ..]);
 
+        // Equivalent to solving R * x = Q.t * b
+        // This gives the solution to the linear problem
         triangular::solve_triangular_system(
             &self.qr.slice(s![..ncols, ..ncols]),
             &mut b,
-            |rows| (0..rows).rev(),
-            |r, c| s![..r, c],
+            UPLO::Upper,
             |i| unsafe { self.diag.at(i).abs() },
         )?;
         Ok(b)
     }
 
+    /// Solves `self.t * x = b`.
+    pub fn solve_tr_into<Si: DataMut<Elem = A>>(
+        &self,
+        mut b: ArrayBase<Si, Ix2>,
+    ) -> Result<Array2<A>> {
+        if self.qr.ncols() != b.nrows() {
+            return Err(LinalgError::WrongRows {
+                expected: self.qr.ncols(),
+                actual: b.nrows(),
+            });
+        }
+
+        let ncols = self.qr.ncols();
+        // Equivalent to solving R.t * m = b, where m is upper portion of x
+        triangular::solve_triangular_system(
+            &self.qr.slice(s![..ncols, ..ncols]).t(),
+            &mut b,
+            UPLO::Lower,
+            |i| unsafe { self.diag.at(i).abs() },
+        )?;
+
+        // XXX Could implement a non-transpose version of qt_mul to reduce allocations
+        Ok(self.q().dot(&b))
+    }
+
     pub fn solve<Si: Data<Elem = A>>(&self, b: &ArrayBase<Si, Ix2>) -> Result<Array2<A>> {
         self.solve_into(b.to_owned())
+    }
+
+    pub fn solve_tr<Si: Data<Elem = A>>(&self, b: &ArrayBase<Si, Ix2>) -> Result<Array2<A>> {
+        self.solve_tr_into(b.to_owned())
     }
 
     pub fn inverse(&self) -> Result<Array2<A>> {
@@ -184,6 +216,32 @@ mod tests {
         let b = a.dot(&x);
         let sol = a.qr_into().unwrap().solve(&b).unwrap();
         assert_abs_diff_eq!(sol, x, epsilon = 1e-5);
+    }
+
+    #[test]
+    fn solve_tr() {
+        let a = array![[1., 9.80], [-7., 3.3]];
+        let x = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]];
+        let b = a.dot(&x);
+        let sol = a.reversed_axes().qr_into().unwrap().solve_tr(&b).unwrap();
+        assert_abs_diff_eq!(sol, x, epsilon = 1e-5);
+
+        assert_abs_diff_eq!(
+            Array2::<f64>::eye(2)
+                .qr_into()
+                .unwrap()
+                .solve_tr(&Array2::zeros((2, 3)))
+                .unwrap(),
+            Array2::zeros((2, 3))
+        );
+
+        // Test with non-square matrix
+        let a = array![[3.2, 1.3], [4.4, 5.2], [1.3, 6.7]].reversed_axes();
+        let x = array![[3.2, 1.3, 4.4], [5.2, 1.3, 6.7]].reversed_axes();
+        let b = a.dot(&x);
+        let sol = a.t().to_owned().qr_into().unwrap().solve_tr(&b).unwrap();
+        // For some reason we get a different solution than x, but the product is still b
+        assert_abs_diff_eq!(b, a.dot(&sol), epsilon = 1e-7);
     }
 
     #[test]
