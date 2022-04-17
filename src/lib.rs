@@ -17,6 +17,7 @@ pub mod eigh;
 mod givens;
 mod householder;
 mod index;
+pub mod norm;
 pub mod qr;
 pub mod reflection;
 pub mod svd;
