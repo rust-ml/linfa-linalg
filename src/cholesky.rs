@@ -147,8 +147,6 @@ pub trait SolveC<B> {
     type Output;
 
     /// Solves `self * x = b`, where `self` is symmetric positive definite.
-    ///
-    /// As a side effect, `self` is used to calculate an in-place Cholesky decomposition.
     fn solvec(&mut self, b: &B) -> Result<Self::Output>;
 }
 
@@ -163,22 +161,38 @@ impl<A: NdFloat, Si: DataMut<Elem = A>, So: Data<Elem = A>> SolveC<ArrayBase<So,
 }
 
 /// Inverse of a symmetric positive definite matrix
-pub trait InverseC {
+pub trait InverseCInplace {
     type Output;
 
     /// Computes inverse of symmetric positive definite matrix.
     ///
     /// As a side effect, `self` is used to calculate an in-place Cholesky decomposition.
-    fn invc(&mut self) -> Result<Self::Output>;
+    fn invc_inplace(&mut self) -> Result<Self::Output>;
 }
 
-impl<A: NdFloat, S: DataMut<Elem = A>> InverseC for ArrayBase<S, Ix2> {
+impl<A: NdFloat, S: DataMut<Elem = A>> InverseCInplace for ArrayBase<S, Ix2> {
     type Output = Array2<A>;
 
-    fn invc(&mut self) -> Result<Self::Output> {
+    fn invc_inplace(&mut self) -> Result<Self::Output> {
         let eye = Array2::eye(self.nrows());
         let res = self.solvec_into(eye)?;
         Ok(res)
+    }
+}
+
+/// Inverse of a symmetric positive definite matrix
+pub trait InverseC {
+    type Output;
+
+    /// Computes inverse of symmetric positive definite matrix.
+    fn invc(&self) -> Result<Self::Output>;
+}
+
+impl<A: NdFloat, S: Data<Elem = A>> InverseC for ArrayBase<S, Ix2> {
+    type Output = Array2<A>;
+
+    fn invc(&self) -> Result<Self::Output> {
+        self.to_owned().invc_inplace()
     }
 }
 
@@ -245,7 +259,7 @@ mod test {
     #[test]
     fn invc() {
         let arr = array![[25., 15., -5.], [15., 18., 0.], [-5., 0., 11.]];
-        let inv = arr.clone().invc().unwrap();
+        let inv = arr.invc().unwrap();
         assert_abs_diff_eq!(arr.dot(&inv), Array2::eye(3));
     }
 

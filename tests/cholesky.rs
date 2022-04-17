@@ -62,7 +62,7 @@ fn run_solvec_test(mut a: Array2<f64>, x: Array2<f64>) {
 }
 
 fn run_invc_test(a: Array2<f64>) {
-    let inv = a.clone().invc().unwrap();
+    let inv = a.invc().unwrap();
     assert_abs_diff_eq!(a.dot(&inv), Array2::eye(a.nrows()), epsilon = 1e-7);
 }
 
