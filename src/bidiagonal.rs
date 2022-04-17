@@ -89,26 +89,22 @@ impl<A: NdFloat, S: DataMut<Elem = A>> BidiagonalDecomp<A, S> {
     /// matrix
     pub fn generate_u(&self) -> Array2<A> {
         let shift = !self.upper_diag as usize;
-        assemble_q(&self.uv, shift, |i| {
-            if self.upper_diag {
-                self.diagonal[i].signum()
-            } else {
-                self.off_diagonal[i].signum()
-            }
-        })
+        if self.upper_diag {
+            assemble_q(&self.uv, shift, |i| self.diagonal[i])
+        } else {
+            assemble_q(&self.uv, shift, |i| self.off_diagonal[i])
+        }
     }
 
     /// Generates `Vt` matrix, which is min(R, C) x C, where R and C are dimensions of the original
     /// matrix
     pub fn generate_vt(&self) -> Array2<A> {
         let shift = self.upper_diag as usize;
-        assemble_q(&self.uv.t(), shift, |i| {
-            if self.upper_diag {
-                self.off_diagonal[i].signum()
-            } else {
-                self.diagonal[i].signum()
-            }
-        })
+        if self.upper_diag {
+            assemble_q(&self.uv.t(), shift, |i| self.off_diagonal[i])
+        } else {
+            assemble_q(&self.uv.t(), shift, |i| self.diagonal[i])
+        }
         .reversed_axes()
     }
 

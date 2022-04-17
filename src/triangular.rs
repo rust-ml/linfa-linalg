@@ -91,13 +91,13 @@ where
 }
 
 #[inline]
-/// Generalized implementation for both upper and lower triangular solvers.
-/// Ensure that the diagonal of `a` is non-zero, otherwise output will be wrong.
-fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix2>>(
+/// Common code for upper and lower triangular solvers
+fn solve_triangular_system_common<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix2>>(
     a: &ArrayBase<impl Data<Elem = A>, Ix2>,
     b: &mut ArrayBase<impl DataMut<Elem = A>, Ix2>,
     row_iter_fn: impl Fn(usize) -> I,
     row_slice_fn: impl Fn(usize, usize) -> S,
+    diag_fn: impl Fn(usize) -> A,
 ) -> Result<()> {
     let rows = check_square(a)?;
     if b.nrows() != rows {
@@ -114,7 +114,7 @@ fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix
         for i in row_iter_fn(rows) {
             let coeff;
             unsafe {
-                let diag = *a.at((i, i));
+                let diag = diag_fn(i);
                 coeff = *b.at((i, k)) / diag;
                 *b.atm((i, k)) = coeff;
             }
@@ -125,6 +125,22 @@ fn solve_triangular_system<A: NdFloat, I: Iterator<Item = usize>, S: SliceArg<Ix
     }
 
     Ok(())
+}
+
+/// Generalized implementation for both upper and lower triangular solvers.
+/// Index passed into `diag_fn` is guaranteed to be within the bounds of `MIN(a.nrows, a.ncols)`.
+/// Ensure that the return of `diag_fn` is non-zero, otherwise output will be wrong.
+pub(crate) fn solve_triangular_system<A: NdFloat>(
+    a: &ArrayBase<impl Data<Elem = A>, Ix2>,
+    b: &mut ArrayBase<impl DataMut<Elem = A>, Ix2>,
+    uplo: UPLO,
+    diag_fn: impl Fn(usize) -> A,
+) -> Result<()> {
+    if uplo == UPLO::Upper {
+        solve_triangular_system_common(a, b, |rows| (0..rows).rev(), |r, c| s![..r, c], diag_fn)
+    } else {
+        solve_triangular_system_common(a, b, |rows| (0..rows), |r, c| s![r + 1.., c], diag_fn)
+    }
 }
 
 /// Solves a triangular system
@@ -147,11 +163,7 @@ impl<A: NdFloat, Si: Data<Elem = A>, So: DataMut<Elem = A>>
         b: &'a mut ArrayBase<So, Ix2>,
         uplo: UPLO,
     ) -> Result<&'a mut ArrayBase<So, Ix2>> {
-        if uplo == UPLO::Upper {
-            solve_triangular_system(self, b, |rows| (0..rows).rev(), |r, c| s![..r, c])?;
-        } else {
-            solve_triangular_system(self, b, |rows| (0..rows), |r, c| s![r + 1.., c])?;
-        }
+        solve_triangular_system(self, b, uplo, |i| unsafe { *self.at((i, i)) })?;
         Ok(b)
     }
 }

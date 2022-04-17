@@ -17,6 +17,7 @@ pub mod eigh;
 mod givens;
 mod householder;
 mod index;
+pub mod qr;
 pub mod reflection;
 pub mod svd;
 pub mod triangular;
@@ -31,9 +32,15 @@ pub enum LinalgError {
     /// Non-square matrix
     #[error("Matrix of ({rows}, {cols}) is not square")]
     NotSquare { rows: usize, cols: usize },
+    /// Matrix rows less than columns
+    #[error("Expected matrix rows({rows}) >= cols({cols})")]
+    NotThin { rows: usize, cols: usize },
     /// Non-positive definite matrix
     #[error("Matrix is not positive definite")]
     NotPositiveDefinite,
+    /// Non-invertible matrix
+    #[error("Matrix is non-invertible")]
+    NonInvertible,
     /// Unexpected empty matrix
     #[error("Matrix is empty")]
     EmptyMatrix,

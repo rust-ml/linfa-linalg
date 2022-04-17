@@ -56,6 +56,13 @@ prop_compose! {
     }
 }
 
+/// Rect array where rows >= cols
+pub fn thin_arr() -> impl Strategy<Value = Array2<f64>> {
+    DIM_RANGE
+        .prop_flat_map(|cols| (cols..=10).prop_map(move |rows| (rows, cols)))
+        .prop_flat_map(|(r, c)| matrix(r, c))
+}
+
 // TODO offer this in the main crate API
 fn to_symm(arr: &mut Array2<f64>) {
     let n = arr.nrows();
@@ -71,4 +78,18 @@ prop_compose! {
         to_symm(&mut arr);
         arr
     }
+}
+
+/// Given a strategy that produces arrays `a`, output strategy producing the arrays `a`
+/// and `x`, where `a * x = b` (`b` needs to be computed inside the test).
+pub fn system_of_arr(
+    arrs: impl Strategy<Value = Array2<f64>>,
+) -> impl Strategy<Value = (Array2<f64>, Array2<f64>)> {
+    arrs.prop_flat_map(|a| {
+        let rows = a.ncols(); // rows of x must equal cols of a
+        (
+            Just(a),
+            DIM_RANGE.prop_flat_map(move |col| matrix(rows, col)),
+        )
+    })
 }
