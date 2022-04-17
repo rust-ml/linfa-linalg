@@ -80,13 +80,13 @@ prop_compose! {
     }
 }
 
-/// Given a strategy that produces square arrays `a`, output strategy producing the arrays `a`
+/// Given a strategy that produces arrays `a`, output strategy producing the arrays `a`
 /// and `x`, where `a * x = b` (`b` needs to be computed inside the test).
 pub fn system_of_arr(
-    squares: impl Strategy<Value = Array2<f64>>,
+    arrs: impl Strategy<Value = Array2<f64>>,
 ) -> impl Strategy<Value = (Array2<f64>, Array2<f64>)> {
-    squares.prop_flat_map(|a| {
-        let rows = a.nrows();
+    arrs.prop_flat_map(|a| {
+        let rows = a.ncols(); // rows of x must equal cols of a
         (
             Just(a),
             DIM_RANGE.prop_flat_map(move |col| matrix(rows, col)),

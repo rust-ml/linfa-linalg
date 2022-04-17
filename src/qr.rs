@@ -109,6 +109,9 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
                 actual: b.nrows(),
             });
         }
+        if !self.is_invertible() {
+            return Err(LinalgError::NonInvertible);
+        }
 
         // Calculate Q.t * b and extract the result
         self.qt_mul(&mut b);
@@ -136,6 +139,9 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
                 expected: self.qr.ncols(),
                 actual: b.nrows(),
             });
+        }
+        if !self.is_invertible() {
+            return Err(LinalgError::NonInvertible);
         }
 
         let ncols = self.qr.ncols();
@@ -301,6 +307,25 @@ mod tests {
             Array2::<f64>::eye(2).qr_into().unwrap().inverse().unwrap(),
             Array2::eye(2)
         );
+    }
+
+    #[test]
+    fn non_invertible() {
+        let arr = Array2::<f64>::zeros((2, 2));
+        assert!(matches!(
+            arr.qr().unwrap().inverse().unwrap_err(),
+            LinalgError::NonInvertible
+        ));
+        assert!(matches!(
+            arr.least_squares_into(Array2::zeros((2, 2))).unwrap_err(),
+            LinalgError::NonInvertible
+        ));
+
+        let wide = Array2::<f64>::zeros((2, 3));
+        assert!(matches!(
+            wide.least_squares_into(Array2::zeros((2, 2))).unwrap_err(),
+            LinalgError::NonInvertible
+        ));
     }
 
     #[test]

@@ -2,7 +2,7 @@ use approx::assert_abs_diff_eq;
 use ndarray::prelude::*;
 use proptest::prelude::*;
 
-use ndarray_linalg_rs::{qr::*, triangular::*};
+use ndarray_linalg_rs::{qr::*, triangular::*, LinalgError};
 
 mod common;
 
@@ -15,11 +15,23 @@ fn run_qr_test(orig: Array2<f64>) {
 
 fn run_inv_test(orig: Array2<f64>) {
     let qr = orig.qr().unwrap();
-    if qr.is_invertible() {
-        let inv = qr.inverse().unwrap();
-        assert_abs_diff_eq!(orig.dot(&inv), Array2::eye(orig.nrows()), epsilon = 1e-7);
-        assert_abs_diff_eq!(inv.dot(&orig), Array2::eye(orig.nrows()), epsilon = 1e-7);
-    }
+    let inv = match qr.inverse() {
+        Ok(inv) => inv,
+        Err(LinalgError::NonInvertible) => return,
+        Err(err) => panic!("Unexpected error: {}", err),
+    };
+    assert_abs_diff_eq!(orig.dot(&inv), Array2::eye(orig.nrows()), epsilon = 1e-7);
+    assert_abs_diff_eq!(inv.dot(&orig), Array2::eye(orig.nrows()), epsilon = 1e-7);
+}
+
+fn run_least_sq_test(a: Array2<f64>, x: Array2<f64>) {
+    let b = a.dot(&x);
+    let sol = match a.clone().least_squares(&b) {
+        Ok(inv) => inv,
+        Err(LinalgError::NonInvertible) => return,
+        Err(err) => panic!("Unexpected error: {}", err),
+    };
+    assert_abs_diff_eq!(a.dot(&sol), b, epsilon = 1e-7);
 }
 
 proptest! {
@@ -32,5 +44,10 @@ proptest! {
     #[test]
     fn inv_qr_test(arr in common::square_arr()) {
         run_inv_test(arr)
+    }
+
+    #[test]
+    fn least_squares_qr_test((a, x) in common::system_of_arr(common::rect_arr())) {
+        run_least_sq_test(a, x);
     }
 }

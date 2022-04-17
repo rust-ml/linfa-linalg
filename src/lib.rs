@@ -38,6 +38,9 @@ pub enum LinalgError {
     /// Non-positive definite matrix
     #[error("Matrix is not positive definite")]
     NotPositiveDefinite,
+    /// Non-invertible matrix
+    #[error("Matrix is non-invertible")]
+    NonInvertible,
     /// Unexpected empty matrix
     #[error("Matrix is empty")]
     EmptyMatrix,
