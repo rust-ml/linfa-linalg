@@ -51,3 +51,25 @@ proptest! {
         run_least_sq_test(a, x);
     }
 }
+
+#[test]
+fn inverse_scaled_identity() {
+    // A perfectly invertible matrix with
+    // very small coefficients
+    let a = array!(
+        [1.0e-20, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0e-20, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0e-20, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0e-20, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 1.0e-20],
+    );
+    let expected_inverse = array!(
+        [1.0e+20, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0e+20, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0e+20, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0e+20, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 1.0e+20],
+    );
+    let a_inv = a.qr_into().unwrap().inverse().unwrap();
+    assert_abs_diff_eq!(a_inv, expected_inverse, epsilon = 1e-3);
+}
