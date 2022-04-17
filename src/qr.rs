@@ -1,3 +1,11 @@
+//! QR decomposition of rectangular matrices.
+//!
+//! Note that the QR decomposition implemented here is "thin", so `Q` has dimensions `(r, c)` and
+//! `R` is `(c, c)`, where `r` and `c` are the dimensions of the original matrix.
+//!
+//! This module also exports functionality for calculating matrix inverse and the least squares
+//! problem.
+
 use crate::{
     check_square, householder,
     index::UncheckedIndex,

@@ -1,4 +1,6 @@
-//! Cholesky decomposition and related operations on symmetric positive definite matrices, such as
+//! Cholesky decomposition on symmetric positive definite matrices.
+//!
+//! This module also exports related functionality on symmetric positive definite matrices, such as
 //! solving systems and inversion.
 
 use crate::{
