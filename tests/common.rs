@@ -56,6 +56,13 @@ prop_compose! {
     }
 }
 
+/// Rect array where rows >= cols
+pub fn thin_arr() -> impl Strategy<Value = Array2<f64>> {
+    DIM_RANGE
+        .prop_flat_map(|cols| (cols..=10).prop_map(move |rows| (rows, cols)))
+        .prop_flat_map(|(r, c)| matrix(r, c))
+}
+
 // TODO offer this in the main crate API
 fn to_symm(arr: &mut Array2<f64>) {
     let n = arr.nrows();

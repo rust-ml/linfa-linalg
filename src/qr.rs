@@ -20,7 +20,7 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRInto for ArrayBase<S, Ix2> {
     fn qr_into(mut self) -> Result<Self::Decomp> {
         let (rows, cols) = self.dim();
         if self.nrows() < self.ncols() {
-            return Err(LinalgError::NotTall { rows, cols });
+            return Err(LinalgError::NotThin { rows, cols });
         }
 
         let mut diag = Array::zeros(cols);

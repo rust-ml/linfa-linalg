@@ -34,7 +34,7 @@ pub enum LinalgError {
     NotSquare { rows: usize, cols: usize },
     /// Matrix rows less than columns
     #[error("Expected matrix rows({rows}) >= cols({cols})")]
-    NotTall { rows: usize, cols: usize },
+    NotThin { rows: usize, cols: usize },
     /// Non-positive definite matrix
     #[error("Matrix is not positive definite")]
     NotPositiveDefinite,
