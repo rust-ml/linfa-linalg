@@ -159,9 +159,53 @@ impl<A: NdFloat, S: DataMut<Elem = A>> QRDecomp<A, S> {
         self.solve_tr_into(b.to_owned())
     }
 
+    pub fn is_invertible(&self) -> bool {
+        // No zeros in the diagonal
+        self.diag.iter().all(|f| !f.is_zero())
+    }
+
     pub fn inverse(&self) -> Result<Array2<A>> {
         check_square(&self.qr)?;
         self.solve_into(Array2::eye(self.diag.len()))
+    }
+}
+
+pub trait LeastSquaresQrInto<B> {
+    type Output;
+
+    fn least_squares_into(self, b: B) -> Result<Self::Output>;
+}
+
+impl<A: NdFloat, Si: DataMut<Elem = A>, So: DataMut<Elem = A>>
+    LeastSquaresQrInto<ArrayBase<So, Ix2>> for ArrayBase<Si, Ix2>
+{
+    type Output = Array2<A>;
+
+    fn least_squares_into(self, b: ArrayBase<So, Ix2>) -> Result<Self::Output> {
+        let out = if self.nrows() >= self.ncols() {
+            self.qr_into()?.solve_into(b)?.into_owned()
+        } else {
+            // If array is fat (rows < cols) then take the QR of the transpose and run the
+            // transpose solving algorithm
+            self.reversed_axes().qr_into()?.solve_tr_into(b)?
+        };
+        Ok(out)
+    }
+}
+
+pub trait LeastSquaresQr<B> {
+    type Output;
+
+    fn least_squares(self, b: &B) -> Result<Self::Output>;
+}
+
+impl<A: NdFloat, Si: DataMut<Elem = A>, So: Data<Elem = A>> LeastSquaresQr<ArrayBase<So, Ix2>>
+    for ArrayBase<Si, Ix2>
+{
+    type Output = Array2<A>;
+
+    fn least_squares(self, b: &ArrayBase<So, Ix2>) -> Result<Self::Output> {
+        self.least_squares_into(b.to_owned())
     }
 }
 
