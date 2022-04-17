@@ -345,4 +345,27 @@ mod tests {
         qr.qt_mul(&mut b);
         assert_abs_diff_eq!(b.slice(s![..2, ..2]), res, epsilon = 1e-7);
     }
+
+    #[test]
+    fn corner() {
+        let (q, r) = Array2::<f64>::zeros((0, 0))
+            .qr_into()
+            .unwrap()
+            .into_decomp();
+        assert!(q.is_empty());
+        assert!(r.is_empty());
+
+        assert!(matches!(
+            Array2::<f64>::zeros((2, 3)).qr_into().unwrap_err(),
+            LinalgError::NotThin { rows: 2, cols: 3 }
+        ));
+        assert!(matches!(
+            Array2::<f64>::zeros((3, 2))
+                .qr_into()
+                .unwrap()
+                .inverse()
+                .unwrap_err(),
+            LinalgError::NotSquare { rows: 3, cols: 2 }
+        ));
+    }
 }
