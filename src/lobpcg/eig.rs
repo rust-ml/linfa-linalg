@@ -180,14 +180,13 @@ mod tests {
         let res = teig
             .into_iter()
             .take(3)
-            .flat_map(|x| x.0.to_vec())
-            .collect::<Vec<_>>();
+            .flat_map(|x| x.0.to_vec());
         let ground_truth = vec![20., 19., 18.];
 
         assert!(
             ground_truth
                 .into_iter()
-                .zip(res.into_iter())
+                .zip(res)
                 .map(|(x, y)| (x - y) * (x - y))
                 .sum::<f64>()
                 < 0.01

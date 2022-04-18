@@ -37,13 +37,13 @@ fn generalized_eig<S: Data<Elem = A>, A: NdFloat>(
     b: ArrayBase<S, Ix2>,
 ) -> Result<(Array1<A>, Array2<A>)> {
     let (vals_b, vecs_b) = b.eigh()?;
-    let vals_b_recip = vals_b.mapv(|x| (x.sqrt() + A::from(1e-10f32).unwrap()).recip());
+    let vals_b_recip = vals_b.mapv(|x| (x.max(A::from(1e-10f32).unwrap())).sqrt().recip());
     let vecs_b_tilde = &vecs_b * &vals_b_recip;
     let a_tilde = vecs_b_tilde.t().dot(&a.dot(&vecs_b_tilde));
     let (vals_a, vecs_a) = a_tilde.eigh()?;
-    let vecs = vecs_b.dot(&vecs_a);
+    let vecs = vecs_b_tilde.dot(&vecs_a);
 
-    Ok((vals_a, vecs).sort_eig(false))
+    Ok((vals_a, vecs))
 }
 
 /// Solve full eigenvalue problem, sort by `order` and truncate to `size`
@@ -55,10 +55,15 @@ fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
 ) -> Result<(Array1<A>, Array2<A>)> {
     let n = a.len_of(Axis(0));
 
-    let (vals, vecs) = match b {
+    let res = match b {
         Some(b) => generalized_eig(a, b)?,
-        _ => a.eigh()?.sort_eig(false),
+        _ => a.eigh()?.sort_eig(false)
     };
+
+    // sort and ensure that signs are deterministic
+    let (vals, vecs) = res.sort_eig(false);
+    let s = vecs.row(0).mapv(|x| x.signum());
+    let vecs = vecs * &s;
 
     Ok(match order {
         Order::Largest => (
@@ -519,28 +524,21 @@ mod tests {
 
     #[test]
     fn test_generalized_eigenvalue() {
-        let matrix: Array2<f64> = random((3, 3)) * 1.;
+        let matrix: Array2<f64> = random((10, 10)) * 1.;
         let matrix = matrix.t().dot(&matrix);
-        let identity = Array2::eye(3);
+        let identity = Array2::eye(10);
         let matrix_inv = matrix.qr().unwrap().inverse().unwrap();
 
         // check that for the same matrix all eigenvalues are one
-        //let (vals, _) = sorted_eig(matrix.view(), Some(matrix.view()), 3, &Order::Largest).unwrap();
+        let (vals, _) = sorted_eig(matrix.view(), Some(matrix.view()), 10, &Order::Largest).unwrap();
         
-        //assert_abs_diff_eq!(vals, Array1::from_elem(3, 1.0), epsilon=1e-4);
+        assert_abs_diff_eq!(vals, Array1::from_elem(10, 1.0), epsilon=1e-4);
 
-        // check that the normal and inverse generalized EVP matches
-        let (vals1, vecs1) = sorted_eig(matrix.view(), Some(identity.view()), 3, &Order::Largest).unwrap();
-        let (vals2, vecs2) = sorted_eig(identity.view(), Some(matrix_inv.view()), 3, &Order::Largest).unwrap();
+        let (vals1, _) = sorted_eig(matrix.view(), Some(identity.view()), 10, &Order::Largest).unwrap();
+        let (vals2, _) = sorted_eig(identity.view(), Some(matrix_inv.view()), 10, &Order::Largest).unwrap();
 
-        // make sure that first element sign matches
-        let s = vecs1.row(0).mapv(|x| x.signum());
-        let vecs1 = vecs1 * &s;
-        let s = vecs2.row(0).mapv(|x| x.signum());
-        let vecs2 = vecs2 * &s;
-
-        assert_abs_diff_eq!(vals1, vals2, epsilon=1e-3);
-        assert_abs_diff_eq!(vecs1, vecs2, epsilon=1e-1);
+        assert_abs_diff_eq!(vals1, vals2, epsilon=1e-5);
+        //assert_abs_diff_eq!(vecs1, vecs2, epsilon=1e-5);
     }
 
     fn assert_symmetric(a: &Array2<f64>) {
@@ -553,7 +551,7 @@ mod tests {
         let n = a.len_of(Axis(0));
         let x: Array2<f64> = random((n, num));
 
-        let result = lobpcg(|y| a.dot(&y), x, |_| {}, None, 1e-5, n * 2, order);
+        let result = lobpcg(|y| a.dot(&y), x, |_| {}, None, 1e-6, n * 3, order);
         match result {
             LobpcgResult::Ok(vals, _, r_norms) | LobpcgResult::Err(vals, _, r_norms, _) => {
                 // check convergence
@@ -570,7 +568,7 @@ mod tests {
                     assert_abs_diff_eq!(
                         &Array1::from(ground_truth_eigvals.to_vec()),
                         &vals,
-                        epsilon=num as f64 * 5e-3,
+                        epsilon=num as f64 * 5e-5,
                     )
                 }
             }
@@ -600,12 +598,12 @@ mod tests {
         let (v, _) = orthonormalize(tmp).unwrap();
 
         // set eigenvalues in decreasing order
-        let t = Array2::from_diag(&Array1::linspace(n as f64, -(n as f64), n));
+        let t = Array2::from_diag(&Array1::linspace(n as f64, - (n as f64) + 2., n));
         let a = v.dot(&t.dot(&v.t()));
 
         // find five largest eigenvalues
         check_eigenvalues(&a, Order::Largest, 5, &[50.0, 48.0, 46.0, 44.0, 42.0]);
-        check_eigenvalues(&a, Order::Smallest, 5, &[-50.0, -48.0, -46.0, -44.0, -42.0]);
+        check_eigenvalues(&a, Order::Smallest, 5, &[-48.0, -46.0, -44.0, -42.0, -40.0]);
     }
 
     #[test]
