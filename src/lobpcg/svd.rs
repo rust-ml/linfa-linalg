@@ -143,7 +143,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A> {
     ///
     /// ```rust
     /// use ndarray::{arr1, Array2};
-    /// use ndarray_linalg::{TruncatedSvd, TruncatedOrder};
+    /// use ndarray_linalg_rs::lobpcg::{TruncatedSvd, TruncatedOrder};
     ///
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
@@ -287,6 +287,7 @@ mod tests {
         let data = Array2::random_using((1000, 500), StandardNormal, &mut rng) / 1000f64.sqrt();
 
         let res = TruncatedSvd::new(data, Order::Largest)
+            .precision(1e-3)
             .decompose(500)
             .unwrap();
 

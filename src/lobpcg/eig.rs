@@ -19,7 +19,7 @@ use std::iter::Sum;
 ///
 /// ```rust
 /// use ndarray::{arr1, Array2};
-/// use ndarray_linalg::{TruncatedEig, TruncatedOrder};
+/// use ndarray_linalg_rs::lobpcg::{TruncatedEig, TruncatedOrder};
 ///
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
@@ -110,7 +110,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
     ///
     /// ```rust
     /// use ndarray::{arr1, Array2};
-    /// use ndarray_linalg_rs::{TruncatedEig, TruncatedOrder};
+    /// use ndarray_linalg_rs::lobpcg::{TruncatedEig, TruncatedOrder};
     ///
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
@@ -171,7 +171,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> IntoIterator for Truncated
 ///
 /// ```rust
 /// use ndarray::{arr1, Array2};
-/// use ndarray_linalg::{TruncatedEig, TruncatedOrder};
+/// use ndarray_linalg_rs::lobpcg::{TruncatedEig, TruncatedOrder};
 ///
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
