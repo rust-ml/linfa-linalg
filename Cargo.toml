@@ -13,6 +13,7 @@ categories = ["algorithms", "mathematics", "science"]
 ndarray = { version = "0.15", features = ["approx"] }
 num-traits = "0.2.0"
 thiserror = "1"
+rand = "0.8"
 
 [dev-dependencies]
 approx = "0.4"
