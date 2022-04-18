@@ -1,13 +1,13 @@
+use super::random;
 ///! Truncated singular value decomposition
 ///!
 ///! This module computes the k largest/smallest singular values/vectors for a dense matrix.
-use super::lobpcg::{lobpcg, LobpcgResult, Order};
-use super::random;
+use crate::lobpcg::{lobpcg, LobpcgResult, TruncatedOrder as Order};
 use crate::Result;
 use ndarray::prelude::*;
 use num_traits::{Float, NumCast};
-use std::ops::DivAssign;
 use std::iter::Sum;
+use std::ops::DivAssign;
 
 /// The result of a eigenvalue decomposition, not yet transformed into singular values/vectors
 ///
@@ -28,7 +28,7 @@ impl<A: Float + PartialOrd + DivAssign<A> + 'static + MagnitudeCorrection> Trunc
         let mut a = self.eigvals.iter().enumerate().collect::<Vec<_>>();
 
         // sort by magnitude
-        a.sort_by(|(_, x), (_, y)| x.partial_cmp(&y).unwrap().reverse());
+        a.sort_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap().reverse());
 
         // calculate cut-off magnitude (borrowed from scipy)
         let cutoff = A::epsilon() * // float precision
@@ -88,7 +88,7 @@ impl<A: Float + PartialOrd + DivAssign<A> + 'static + MagnitudeCorrection> Trunc
 /// Truncated singular value decomposition
 ///
 /// Wraps the LOBPCG algorithm and provides convenient builder-pattern access to
-/// parameter like maximal iteration, precision and constraint matrix.
+/// parameter like maximal iteration, precision and constrain matrix.
 pub struct TruncatedSvd<A: NdFloat> {
     order: Order,
     problem: Array2<A>,
@@ -97,6 +97,11 @@ pub struct TruncatedSvd<A: NdFloat> {
 }
 
 impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A> {
+    /// Create a new truncated SVD problem
+    ///
+    /// # Parameters
+    ///  * `problem`: rectangular matrix which is decomposed
+    ///  * `order`: whether to return large or small (close to zero) singular values
     pub fn new(problem: Array2<A>, order: Order) -> TruncatedSvd<A> {
         TruncatedSvd {
             precision: 1e-5,
@@ -106,19 +111,48 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A> {
         }
     }
 
+    /// Set the required precision of the solution
+    ///
+    /// The precision is, in the context of SVD, the square-root precision of the underlying
+    /// eigenproblem solution. The eigenproblem-precision is used to check the L2 error of each
+    /// eigenvector and stops its optimization when the required precision is reached.
     pub fn precision(mut self, precision: f32) -> Self {
         self.precision = precision;
 
         self
     }
 
+    /// Set the maximal number of iterations
+    ///
+    /// The LOBPCG is an iterative approach to eigenproblems and stops when this maximum
+    /// number of iterations are reached
     pub fn maxiter(mut self, maxiter: usize) -> Self {
         self.maxiter = maxiter;
 
         self
     }
 
-    // calculate the eigenvalue decomposition
+    /// Calculate the singular value decomposition
+    ///
+    /// # Parameters
+    ///
+    ///  * `num`: number of singular-value/vector pairs, ordered by magnitude
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use ndarray::{arr1, Array2};
+    /// use ndarray_linalg::{TruncatedSvd, TruncatedOrder};
+    ///
+    /// let diag = arr1(&[1., 2., 3., 4., 5.]);
+    /// let a = Array2::from_diag(&diag);
+    ///
+    /// let eig = TruncatedSvd::new(a, TruncatedOrder::Largest)
+    ///    .precision(1e-5)
+    ///    .maxiter(500);
+    ///
+    /// let res = eig.decompose(3);
+    /// ```
     pub fn decompose(self, num: usize) -> Result<TruncatedSvdResult<A>> {
         if num < 1 {
             panic!("The number of singular values to compute should be larger than zero!");
@@ -171,6 +205,11 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A> {
     }
 }
 
+/// Magnitude Correction
+///
+/// The magnitude correction changes the cut-off point at which an eigenvector belongs to the
+/// null-space and its eigenvalue is therefore zero. The correction is multiplied by the floating
+/// point epsilon and therefore dependent on the floating type.
 pub trait MagnitudeCorrection {
     fn correction() -> Self;
 }
@@ -192,9 +231,12 @@ mod tests {
     use super::Order;
     use super::TruncatedSvd;
 
-    use ndarray::{arr1, arr2, Array2};
     use crate::lobpcg::random;
     use approx::assert_abs_diff_eq;
+    use ndarray::{arr1, arr2, s, Array1, Array2};
+    use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
+    use rand::SeedableRng;
+    use rand_xoshiro::Xoshiro256Plus;
 
     #[test]
     fn test_truncated_svd() {
@@ -208,7 +250,7 @@ mod tests {
 
         let (_, sigma, _) = res.values_vectors();
 
-        assert_abs_diff_eq!(&sigma, &arr1(&[5.0, 3.0]), epsilon=1e-5);
+        assert_abs_diff_eq!(&sigma, &arr1(&[5.0, 3.0]), epsilon = 1e-5);
     }
 
     #[test]
@@ -224,6 +266,60 @@ mod tests {
         let (u, sigma, v_t) = res.values_vectors();
         let reconstructed = u.dot(&Array2::from_diag(&sigma).dot(&v_t));
 
-        assert_abs_diff_eq!(&a, &reconstructed, epsilon=1e-5);
+        assert_abs_diff_eq!(&a, &reconstructed, epsilon = 1e-5);
+    }
+
+    /// Eigenvalue structure in high dimensions
+    ///
+    /// This test checks that the eigenvalues are following the Marchensko-Pastur law. The data is
+    /// standard uniformly distributed (i.e. E(x) = 0, E^2(x) = 1) and we have twice the amount of
+    /// data when compared to features. The probability density of the eigenvalues should then follow
+    /// a special densitiy function, described by the Marchenko-Pastur law.
+    ///
+    /// See also https://en.wikipedia.org/wiki/Marchenko%E2%80%93Pastur_distribution
+    #[test]
+    fn test_marchenko_pastur() {
+        // create random number generator
+        let mut rng = Xoshiro256Plus::seed_from_u64(3);
+
+        // generate normal distribution random data with N >> p
+        let data = Array2::random_using((1000, 500), StandardNormal, &mut rng) / 1000f64.sqrt();
+
+        let res = TruncatedSvd::new(data, Order::Largest)
+            .decompose(500)
+            .unwrap();
+
+        let sv = res.values().mapv(|x: f64| x * x);
+
+        // we have created a random spectrum and can apply the Marchenko-Pastur law
+        // with variance 1 and p/n = 0.5
+        let (a, b) = (
+            1. * (1. - 0.5f64.sqrt()).powf(2.0),
+            1. * (1. + 0.5f64.sqrt()).powf(2.0),
+        );
+
+        // check that the spectrum has correct boundaries
+        assert_abs_diff_eq!(b, sv[0], epsilon = 0.1);
+        assert_abs_diff_eq!(a, sv[sv.len() - 1], epsilon = 0.1);
+
+        // estimate density empirical and compare with Marchenko-Pastur law
+        let mut i = 0;
+        'outer: for th in Array1::linspace(0.1f64, 2.8, 28).slice(s![..;-1]) {
+            let mut count = 0;
+            while sv[i] >= *th {
+                count += 1;
+                i += 1;
+
+                if i == sv.len() {
+                    break 'outer;
+                }
+            }
+
+            let x = th + 0.05;
+            let mp_law = ((b - x) * (x - a)).sqrt() / std::f64::consts::PI / x;
+            let empirical = count as f64 / 500. / ((2.8 - 0.1) / 28.);
+
+            assert_abs_diff_eq!(mp_law, empirical, epsilon = 0.05);
+        }
     }
 }

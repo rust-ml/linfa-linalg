@@ -17,13 +17,13 @@ pub mod eigh;
 mod givens;
 mod householder;
 mod index;
+pub mod lobpcg;
 pub mod norm;
 pub mod qr;
 pub mod reflection;
 pub mod svd;
 pub mod triangular;
 pub mod tridiagonal;
-pub mod lobpcg;
 
 use ndarray::{ArrayBase, Ix2, RawData, ShapeError};
 use thiserror::Error;

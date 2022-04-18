@@ -1,11 +1,11 @@
+use crate::{cholesky::*, eigh::*, norm::*, triangular::*};
 ///! Locally Optimal Block Preconditioned Conjugated
 ///!
 ///! This module implements the Locally Optimal Block Preconditioned Conjugated (LOBPCG) algorithm,
-///which can be used as a solver for large symmetric positive definite eigenproblems.
+///which can be used as a solver for large symmetric eigenproblems.
 use crate::{LinalgError, Result};
-use crate::{cholesky::*, eigh::*, norm::*, triangular::*};
 use ndarray::prelude::*;
-use ndarray::{Data, ScalarOperand, concatenate};
+use ndarray::{concatenate, Data, ScalarOperand};
 use num_traits::{Float, NumCast};
 
 use std::iter::Sum;
@@ -57,7 +57,7 @@ fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
 
     let res = match b {
         Some(b) => generalized_eig(a, b)?,
-        _ => a.eigh()?.sort_eig(false)
+        _ => a.eigh()?.sort_eig(false),
     };
 
     // sort and ensure that signs are deterministic
@@ -70,10 +70,7 @@ fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
             vals.slice_move(s![n-size..; -1]),
             vecs.slice_move(s![.., n-size..; -1]),
         ),
-        Order::Smallest => (
-            vals.slice_move(s![..size]),
-            vecs.slice_move(s![.., ..size]),
-        ),
+        Order::Smallest => (vals.slice_move(s![..size]), vecs.slice_move(s![.., ..size])),
     })
 }
 
@@ -307,9 +304,7 @@ pub fn lobpcg<
         };
 
         // if we are once below the max_rnorm, enable explicit gram flag
-        let max_norm = residual_norms
-            .into_iter()
-            .fold(A::neg_infinity(), A::max);
+        let max_norm = residual_norms.into_iter().fold(A::neg_infinity(), A::max);
         explicit_gram_flag = max_norm <= max_rnorm_float || explicit_gram_flag;
 
         // perform the Rayleigh Ritz procedure
@@ -473,10 +468,10 @@ mod tests {
     use super::sorted_eig;
     use super::LobpcgResult;
     use super::Order;
-    use crate::qr::*;
-    use ndarray::prelude::*;
-    use approx::assert_abs_diff_eq;
     use crate::lobpcg::random;
+    use crate::qr::*;
+    use approx::assert_abs_diff_eq;
+    use ndarray::prelude::*;
 
     /// Test the `sorted_eigen` function
     #[test]
@@ -491,7 +486,7 @@ mod tests {
         let diag = Array2::from_diag(&vals);
         let rec = (vecs.dot(&diag)).dot(&vecs.t());
 
-        assert_abs_diff_eq!(&matrix, &rec, epsilon=1e-5);
+        assert_abs_diff_eq!(&matrix, &rec, epsilon = 1e-5);
     }
 
     /// Test the masking function
@@ -502,7 +497,7 @@ mod tests {
         assert_abs_diff_eq!(
             &masked_matrix.slice(s![.., 2]),
             &matrix.slice(s![.., 3]),
-            epsilon=1e-12,
+            epsilon = 1e-12,
         );
     }
 
@@ -515,11 +510,15 @@ mod tests {
 
         // check for orthogonality
         let identity = n.dot(&n.t());
-        assert_abs_diff_eq!(&identity, &Array2::eye(10), epsilon=1e-2);
+        assert_abs_diff_eq!(&identity, &Array2::eye(10), epsilon = 1e-2);
 
         // compare returned factorization with QR decomposition
         let qr = matrix.qr().unwrap();
-        assert_abs_diff_eq!(&qr.into_r().mapv(|x| x.abs()), &l.t().mapv(|x| x.abs()), epsilon=1e-2);
+        assert_abs_diff_eq!(
+            &qr.into_r().mapv(|x| x.abs()),
+            &l.t().mapv(|x| x.abs()),
+            epsilon = 1e-2
+        );
     }
 
     #[test]
@@ -530,19 +529,27 @@ mod tests {
         let matrix_inv = matrix.qr().unwrap().inverse().unwrap();
 
         // check that for the same matrix all eigenvalues are one
-        let (vals, _) = sorted_eig(matrix.view(), Some(matrix.view()), 10, &Order::Largest).unwrap();
-        
-        assert_abs_diff_eq!(vals, Array1::from_elem(10, 1.0), epsilon=1e-4);
+        let (vals, _) =
+            sorted_eig(matrix.view(), Some(matrix.view()), 10, &Order::Largest).unwrap();
 
-        let (vals1, _) = sorted_eig(matrix.view(), Some(identity.view()), 10, &Order::Largest).unwrap();
-        let (vals2, _) = sorted_eig(identity.view(), Some(matrix_inv.view()), 10, &Order::Largest).unwrap();
+        assert_abs_diff_eq!(vals, Array1::from_elem(10, 1.0), epsilon = 1e-4);
 
-        assert_abs_diff_eq!(vals1, vals2, epsilon=1e-5);
+        let (vals1, _) =
+            sorted_eig(matrix.view(), Some(identity.view()), 10, &Order::Largest).unwrap();
+        let (vals2, _) = sorted_eig(
+            identity.view(),
+            Some(matrix_inv.view()),
+            10,
+            &Order::Largest,
+        )
+        .unwrap();
+
+        assert_abs_diff_eq!(vals1, vals2, epsilon = 1e-5);
         //assert_abs_diff_eq!(vecs1, vecs2, epsilon=1e-5);
     }
 
     fn assert_symmetric(a: &Array2<f64>) {
-        assert_abs_diff_eq!(a.view(), &a.t(), epsilon=1e-5);
+        assert_abs_diff_eq!(a.view(), &a.t(), epsilon = 1e-5);
     }
 
     fn check_eigenvalues(a: &Array2<f64>, order: Order, num: usize, ground_truth_eigvals: &[f64]) {
@@ -568,7 +575,7 @@ mod tests {
                     assert_abs_diff_eq!(
                         &Array1::from(ground_truth_eigvals.to_vec()),
                         &vals,
-                        epsilon=num as f64 * 5e-5,
+                        epsilon = num as f64 * 5e-5,
                     )
                 }
             }
@@ -598,7 +605,7 @@ mod tests {
         let (v, _) = orthonormalize(tmp).unwrap();
 
         // set eigenvalues in decreasing order
-        let t = Array2::from_diag(&Array1::linspace(n as f64, - (n as f64) + 2., n));
+        let t = Array2::from_diag(&Array1::linspace(n as f64, -(n as f64) + 2., n));
         let a = v.dot(&t.dot(&v.t()));
 
         // find five largest eigenvalues
@@ -638,11 +645,11 @@ mod tests {
                 }
 
                 // should be the third eigenvalue
-                assert_abs_diff_eq!(&vals, &Array1::from(vec![3.0]), epsilon=1e-6);
+                assert_abs_diff_eq!(&vals, &Array1::from(vec![3.0]), epsilon = 1e-6);
                 assert_abs_diff_eq!(
                     &vecs.column(0).mapv(|x| x.abs()),
                     &arr1(&[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-                    epsilon=1e-5,
+                    epsilon = 1e-5,
                 );
             }
             LobpcgResult::NoResult(err) => panic!("Did not converge: {:?}", err),

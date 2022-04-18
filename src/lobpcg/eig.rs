@@ -1,11 +1,10 @@
-use super::lobpcg::{lobpcg, LobpcgResult, Order};
+//! Truncated eigenvalue decomposition
+//!
 use super::random;
+use crate::lobpcg::{lobpcg, LobpcgResult, TruncatedOrder as Order};
 
-///! Implements truncated eigenvalue decomposition
-///
 use ndarray::prelude::*;
-use ndarray::stack;
-use ndarray::NdFloat;
+use ndarray::{stack, NdFloat};
 use num_traits::{Float, NumCast};
 use std::iter::Sum;
 
@@ -15,6 +14,22 @@ use std::iter::Sum;
 /// parameter like maximal iteration, precision and constraint matrix. Furthermore it allows
 /// conversion into a iterative solver where each iteration step yields a new eigenvalue/vector
 /// pair.
+///
+/// # Example
+///
+/// ```rust
+/// use ndarray::{arr1, Array2};
+/// use ndarray_linalg::{TruncatedEig, TruncatedOrder};
+///
+/// let diag = arr1(&[1., 2., 3., 4., 5.]);
+/// let a = Array2::from_diag(&diag);
+///
+/// let eig = TruncatedEig::new(a, TruncatedOrder::Largest)
+///    .precision(1e-5)
+///    .maxiter(500);
+///
+/// let res = eig.decompose(3);
+/// ```
 pub struct TruncatedEig<A: NdFloat> {
     order: Order,
     problem: Array2<A>,
@@ -25,6 +40,11 @@ pub struct TruncatedEig<A: NdFloat> {
 }
 
 impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
+    /// Create a new truncated eigenproblem solver
+    ///
+    /// # Properties
+    /// * `problem`: problem matrix
+    /// * `order`: ordering of the eigenvalues with [TruncatedOrder](crate::TruncatedOrder)
     pub fn new(problem: Array2<A>, order: Order) -> TruncatedEig<A> {
         TruncatedEig {
             precision: 1e-5,
@@ -36,31 +56,71 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
         }
     }
 
+    /// Set desired precision
+    ///
+    /// This argument specifies the desired precision, which is passed to the LOBPCG solver. It
+    /// controls at which point the opimization of each eigenvalue is stopped. The precision is
+    /// global and applied to all eigenvalues with respect to their L2 norm.
+    ///
+    /// If the precision can't be reached and the maximum number of iteration is reached, then an
+    /// error is returned in [LobpcgResult](crate::lobpcg::LobpcgResult).
     pub fn precision(mut self, precision: f32) -> Self {
         self.precision = precision;
 
         self
     }
 
+    /// Set the maximal number of iterations
+    ///
+    /// The LOBPCG is an iterative approach to eigenproblems and stops when this maximum
+    /// number of iterations are reached.
     pub fn maxiter(mut self, maxiter: usize) -> Self {
         self.maxiter = maxiter;
 
         self
     }
 
+    /// Construct a solution, which is orthogonal to this
+    ///
+    /// If a number of eigenvectors are already known, then this function can be used to construct
+    /// a orthogonal subspace. Also used with an iterative approach.
     pub fn orthogonal_to(mut self, constraints: Array2<A>) -> Self {
         self.constraints = Some(constraints);
 
         self
     }
 
+    /// Apply a preconditioner
+    ///
+    /// A preconditioning matrix can speed up the solving process by improving the spectral
+    /// distribution of the eigenvalues. It requires prior knowledge of the problem.
     pub fn precondition_with(mut self, preconditioner: Array2<A>) -> Self {
         self.preconditioner = Some(preconditioner);
 
         self
     }
 
-    // calculate the eigenvalues decompose
+    /// Calculate the eigenvalue decomposition
+    ///
+    /// # Parameters
+    ///
+    ///  * `num`: number of eigenvalues ordered by magnitude
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use ndarray::{arr1, Array2};
+    /// use ndarray_linalg_rs::{TruncatedEig, TruncatedOrder};
+    ///
+    /// let diag = arr1(&[1., 2., 3., 4., 5.]);
+    /// let a = Array2::from_diag(&diag);
+    ///
+    /// let eig = TruncatedEig::new(a, TruncatedOrder::Largest)
+    ///    .precision(1e-5)
+    ///    .maxiter(500);
+    ///
+    /// let res = eig.decompose(3);
+    /// ```
     pub fn decompose(&self, num: usize) -> LobpcgResult<A> {
         let x: Array2<f64> = random((self.problem.len_of(Axis(0)), num));
         let x = x.mapv(|x| NumCast::from(x).unwrap());
@@ -89,9 +149,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
     }
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> IntoIterator
-    for TruncatedEig<A>
-{
+impl<A: Float + NdFloat + PartialOrd + Default + Sum> IntoIterator for TruncatedEig<A> {
     type Item = (Array1<A>, Array2<A>);
     type IntoIter = TruncatedEigIterator<A>;
 
@@ -104,19 +162,37 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> IntoIterator
     }
 }
 
-/// Truncate eigenproblem iterator
+/// Truncated eigenproblem iterator
 ///
 /// This wraps a truncated eigenproblem and provides an iterator where each step yields a new
 /// eigenvalue/vector pair. Useful for generating pairs until a certain condition is met.
+///
+/// # Example
+///
+/// ```rust
+/// use ndarray::{arr1, Array2};
+/// use ndarray_linalg::{TruncatedEig, TruncatedOrder};
+///
+/// let diag = arr1(&[1., 2., 3., 4., 5.]);
+/// let a = Array2::from_diag(&diag);
+///
+/// let teig = TruncatedEig::new(a, TruncatedOrder::Largest)
+///     .precision(1e-5)
+///     .maxiter(500);
+///
+/// // solve eigenproblem until eigenvalues get smaller than 0.5
+/// let res = teig.into_iter()
+///     .take_while(|x| x.0[0] > 0.5)
+///     .flat_map(|x| x.0.to_vec())
+///     .collect::<Vec<_>>();
+/// ```
 pub struct TruncatedEigIterator<A: NdFloat> {
     step_size: usize,
     remaining: usize,
     eig: TruncatedEig<A>,
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> Iterator
-    for TruncatedEigIterator<A>
-{
+impl<A: Float + NdFloat + PartialOrd + Default + Sum> Iterator for TruncatedEigIterator<A> {
     type Item = (Array1<A>, Array2<A>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -177,10 +253,7 @@ mod tests {
             .precision(1e-5)
             .maxiter(500);
 
-        let res = teig
-            .into_iter()
-            .take(3)
-            .flat_map(|x| x.0.to_vec());
+        let res = teig.into_iter().take(3).flat_map(|x| x.0.to_vec());
         let ground_truth = vec![20., 19., 18.];
 
         assert!(
