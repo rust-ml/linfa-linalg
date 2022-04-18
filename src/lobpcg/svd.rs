@@ -57,6 +57,7 @@ impl<A: Float + PartialOrd + DivAssign<A> + 'static + MagnitudeCorrection> Trunc
         let (values, indices) = self.singular_values_with_indices();
 
         // branch n > m (for A is [n x m])
+        #[allow(clippy::branches_sharing_code)]
         let (u, v) = if self.ngm {
             let vlarge = self.eigvecs.select(Axis(1), &indices);
             let mut ularge = self.problem.dot(&vlarge);
