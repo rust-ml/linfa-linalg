@@ -9,6 +9,9 @@ use num_traits::{Float, NumCast};
 use std::iter::Sum;
 use std::ops::DivAssign;
 
+use rand_xoshiro::Xoshiro256Plus;
+use rand::{SeedableRng, Rng};
+
 /// The result of a eigenvalue decomposition, not yet transformed into singular values/vectors
 ///
 /// Provides methods for either calculating just the singular values with reduced cost or the
@@ -90,28 +93,32 @@ impl<A: Float + PartialOrd + DivAssign<A> + 'static + MagnitudeCorrection> Trunc
 ///
 /// Wraps the LOBPCG algorithm and provides convenient builder-pattern access to
 /// parameter like maximal iteration, precision and constrain matrix.
-pub struct TruncatedSvd<A: NdFloat> {
+pub struct TruncatedSvd<A: NdFloat, R: Rng> {
     order: Order,
     problem: Array2<A>,
     precision: f32,
     maxiter: usize,
+    rng: R
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A> {
+impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A, Xoshiro256Plus> {
     /// Create a new truncated SVD problem
     ///
     /// # Parameters
     ///  * `problem`: rectangular matrix which is decomposed
     ///  * `order`: whether to return large or small (close to zero) singular values
-    pub fn new(problem: Array2<A>, order: Order) -> TruncatedSvd<A> {
+    pub fn new(problem: Array2<A>, order: Order) -> TruncatedSvd<A, Xoshiro256Plus> {
         TruncatedSvd {
             precision: 1e-5,
             maxiter: problem.len_of(Axis(0)) * 2,
             order,
             problem,
+            rng: Xoshiro256Plus::seed_from_u64(42),
         }
     }
+}
 
+impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedSvd<A, R> {
     /// Set the required precision of the solution
     ///
     /// The precision is, in the context of SVD, the square-root precision of the underlying
@@ -154,7 +161,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A> {
     ///
     /// let res = eig.decompose(3);
     /// ```
-    pub fn decompose(self, num: usize) -> Result<TruncatedSvdResult<A>> {
+    pub fn decompose(mut self, num: usize) -> Result<TruncatedSvdResult<A>> {
         if num < 1 {
             panic!("The number of singular values to compute should be larger than zero!");
         }
@@ -162,7 +169,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A> {
         let (n, m) = (self.problem.nrows(), self.problem.ncols());
 
         // generate initial matrix
-        let x: Array2<f32> = random((usize::min(n, m), num));
+        let x: Array2<f32> = random((usize::min(n, m), num), &mut self.rng);
         let x = x.mapv(|x| NumCast::from(x).unwrap());
 
         // square precision because the SVD squares the eigenvalue as well
@@ -232,12 +239,22 @@ mod tests {
     use super::Order;
     use super::TruncatedSvd;
 
-    use crate::lobpcg::random;
     use approx::assert_abs_diff_eq;
-    use ndarray::{arr1, arr2, s, Array1, Array2};
+    use ndarray::{arr1, arr2, s, Array1, Array2, NdFloat, ArrayBase};
     use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
-    use rand::SeedableRng;
     use rand_xoshiro::Xoshiro256Plus;
+    use rand::distributions::{Standard, Distribution};
+    use rand::{SeedableRng, Rng};
+
+    /// Generate random array
+    fn random<A>(sh: (usize, usize)) -> Array2<A>
+    where
+        A: NdFloat,
+        Standard: Distribution<A>,
+    {
+        let mut rng = Xoshiro256Plus::seed_from_u64(3);
+        ArrayBase::from_shape_fn(sh, |_| rng.gen::<A>())
+    }
 
     #[test]
     fn test_truncated_svd() {

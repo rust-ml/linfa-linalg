@@ -8,6 +8,9 @@ use ndarray::{stack, NdFloat};
 use num_traits::{Float, NumCast};
 use std::iter::Sum;
 
+use rand_xoshiro::Xoshiro256Plus;
+use rand::{SeedableRng, Rng};
+
 /// Truncated eigenproblem solver
 ///
 /// This struct wraps the LOBPCG algorithm and provides convenient builder-pattern access to
@@ -30,22 +33,23 @@ use std::iter::Sum;
 ///
 /// let res = eig.decompose(3);
 /// ```
-pub struct TruncatedEig<A: NdFloat> {
+pub struct TruncatedEig<A: NdFloat, R: Rng> {
     order: Order,
     problem: Array2<A>,
     pub constraints: Option<Array2<A>>,
     preconditioner: Option<Array2<A>>,
     precision: f32,
     maxiter: usize,
+    rng: R
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
+impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A, Xoshiro256Plus> {
     /// Create a new truncated eigenproblem solver
     ///
     /// # Properties
     /// * `problem`: problem matrix
     /// * `order`: ordering of the eigenvalues with [TruncatedOrder](crate::TruncatedOrder)
-    pub fn new(problem: Array2<A>, order: Order) -> TruncatedEig<A> {
+    pub fn new(problem: Array2<A>, order: Order) -> TruncatedEig<A, Xoshiro256Plus> {
         TruncatedEig {
             precision: 1e-5,
             maxiter: problem.len_of(Axis(0)) * 2,
@@ -53,9 +57,12 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
             constraints: None,
             order,
             problem,
+            rng: Xoshiro256Plus::seed_from_u64(42),
         }
     }
+}
 
+impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedEig<A, R> {
     /// Set desired precision
     ///
     /// This argument specifies the desired precision, which is passed to the LOBPCG solver. It
@@ -121,8 +128,8 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
     ///
     /// let res = eig.decompose(3);
     /// ```
-    pub fn decompose(&self, num: usize) -> LobpcgResult<A> {
-        let x: Array2<f64> = random((self.problem.len_of(Axis(0)), num));
+    pub fn decompose(&mut self, num: usize) -> LobpcgResult<A> {
+        let x: Array2<f64> = random((self.problem.len_of(Axis(0)), num), &mut self.rng);
         let x = x.mapv(|x| NumCast::from(x).unwrap());
 
         if let Some(ref preconditioner) = self.preconditioner {
@@ -149,11 +156,11 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A> {
     }
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> IntoIterator for TruncatedEig<A> {
+impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> IntoIterator for TruncatedEig<A, R> {
     type Item = (Array1<A>, Array2<A>);
-    type IntoIter = TruncatedEigIterator<A>;
+    type IntoIter = TruncatedEigIterator<A, R>;
 
-    fn into_iter(self) -> TruncatedEigIterator<A> {
+    fn into_iter(self) -> TruncatedEigIterator<A, R> {
         TruncatedEigIterator {
             step_size: 1,
             remaining: self.problem.len_of(Axis(0)),
@@ -186,13 +193,13 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> IntoIterator for Truncated
 ///     .flat_map(|x| x.0.to_vec())
 ///     .collect::<Vec<_>>();
 /// ```
-pub struct TruncatedEigIterator<A: NdFloat> {
+pub struct TruncatedEigIterator<A: NdFloat, R: Rng> {
     step_size: usize,
     remaining: usize,
-    eig: TruncatedEig<A>,
+    eig: TruncatedEig<A, R>,
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> Iterator for TruncatedEigIterator<A> {
+impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
     type Item = (Array1<A>, Array2<A>);
 
     fn next(&mut self) -> Option<Self::Item> {

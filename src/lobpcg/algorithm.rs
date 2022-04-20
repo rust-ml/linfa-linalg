@@ -11,7 +11,7 @@ use num_traits::{Float, NumCast};
 use std::iter::Sum;
 
 /// Find largest or smallest eigenvalues
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Order {
     Largest,
     Smallest,
@@ -37,8 +37,8 @@ fn generalized_eig<S: Data<Elem = A>, A: NdFloat>(
     b: ArrayBase<S, Ix2>,
 ) -> Result<(Array1<A>, Array2<A>)> {
     let (vals_b, vecs_b) = b.eigh()?;
-    let vals_b_recip = vals_b.mapv(|x| (x.max(A::from(1e-10f32).unwrap())).sqrt().recip());
-    let vecs_b_tilde = &vecs_b * &vals_b_recip;
+    let vals_b_recip = vals_b.mapv_into(|x| (x.max(A::from(1e-10f32).unwrap())).sqrt().recip());
+    let vecs_b_tilde = vecs_b * vals_b_recip;
     let a_tilde = vecs_b_tilde.t().dot(&a.dot(&vecs_b_tilde));
     let (vals_a, vecs_a) = a_tilde.eigh()?;
     let vecs = vecs_b_tilde.dot(&vecs_a);
@@ -51,7 +51,7 @@ fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
     a: ArrayBase<S, Ix2>,
     b: Option<ArrayBase<S, Ix2>>,
     size: usize,
-    order: &Order,
+    order: Order,
 ) -> Result<(Array1<A>, Array2<A>)> {
     let n = a.len_of(Axis(0));
 
@@ -63,7 +63,7 @@ fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
     // sort and ensure that signs are deterministic
     let (vals, vecs) = res.sort_eig(false);
     let s = vecs.row(0).mapv(|x| x.signum());
-    let vecs = vecs * &s;
+    let vecs = vecs * s;
 
     Ok(match order {
         Order::Largest => (
@@ -78,8 +78,7 @@ fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
 fn ndarray_mask<A: NdFloat>(matrix: ArrayView2<A>, mask: &[bool]) -> Array2<A> {
     assert_eq!(mask.len(), matrix.ncols());
 
-    let indices = (0..mask.len())
-        .zip(mask.iter())
+    let indices = mask.iter().enumerate()
         .filter(|(_, b)| **b)
         .map(|(a, _)| a)
         .collect::<Vec<usize>>();
@@ -121,7 +120,7 @@ fn apply_constraints<A: NdFloat>(
 /// This also returns the matrix `R` of the `QR` problem
 fn orthonormalize<T: NdFloat>(v: Array2<T>) -> Result<(Array2<T>, Array2<T>)> {
     let gram_vv = v.t().dot(&v);
-    let gram_vv_fac = gram_vv.cholesky()?;
+    let gram_vv_fac = gram_vv.cholesky_into()?;
 
     //assert_abs_diff_eq!(
     //    &gram_vv,
@@ -129,9 +128,9 @@ fn orthonormalize<T: NdFloat>(v: Array2<T>) -> Result<(Array2<T>, Array2<T>)> {
     //    epsilon=NumCast::from(1e-5).unwrap(),
     //);
 
-    let v_t = v.reversed_axes();
+    let mut v_t = v.reversed_axes();
     let u = gram_vv_fac
-        .solve_triangular(&v_t, UPLO::Lower)?
+        .solve_triangular(&mut v_t, UPLO::Lower)?
         .reversed_axes();
 
     Ok((u, gram_vv_fac))
@@ -173,7 +172,9 @@ pub fn lobpcg<
     // the initital approximation should be maximal square
     // n is the dimensionality of the problem
     let (n, size_x) = (x.nrows(), x.ncols());
-    assert!(size_x <= n);
+    if size_x > n {
+        return LobpcgResult::NoResult(LinalgError::NotThin { rows: size_x, cols: n});
+    }
 
     /*let size_y = match y {
         Some(ref y) => y.ncols(),
@@ -206,7 +207,7 @@ pub fn lobpcg<
     let xax = x.t().dot(&ax);
 
     // perform eigenvalue decomposition of XAX
-    let (mut lambda, eig_block) = match sorted_eig(xax.view(), None, size_x, &order) {
+    let (mut lambda, eig_block) = match sorted_eig(xax.view(), None, size_x, order) {
         Ok(x) => x,
         Err(err) => return LobpcgResult::NoResult(err),
     };
@@ -383,7 +384,7 @@ pub fn lobpcg<
                         concatenate![Axis(1), xp.t(), rp.t(), pp]
                     ]),
                     size_x,
-                    &order,
+                    order,
                 )
             })
             .or_else(|_| {
@@ -401,7 +402,7 @@ pub fn lobpcg<
                         concatenate![Axis(1), xr.t(), rr]
                     ]),
                     size_x,
-                    &order,
+                    order,
                 )
             });
 
@@ -468,10 +469,23 @@ mod tests {
     use super::sorted_eig;
     use super::LobpcgResult;
     use super::Order;
-    use crate::lobpcg::random;
     use crate::qr::*;
     use approx::assert_abs_diff_eq;
     use ndarray::prelude::*;
+    use rand::Rng;
+    use rand_xoshiro::Xoshiro256Plus;
+    use rand::SeedableRng;
+    use rand::distributions::{Standard, Distribution};
+
+    /// Generate random array
+    fn random<A>(sh: (usize, usize)) -> Array2<A>
+    where
+        A: NdFloat,
+        Standard: Distribution<A>,
+    {
+        let mut rng = Xoshiro256Plus::seed_from_u64(3);
+        ArrayBase::from_shape_fn(sh, |_| rng.gen::<A>())
+    }
 
     /// Test the `sorted_eigen` function
     #[test]
@@ -480,7 +494,7 @@ mod tests {
         let matrix = matrix.t().dot(&matrix);
 
         // return all eigenvectors with largest first
-        let (vals, vecs) = sorted_eig(matrix.view(), None, 10, &Order::Largest).unwrap();
+        let (vals, vecs) = sorted_eig(matrix.view(), None, 10, Order::Largest).unwrap();
 
         // calculate V * A * V' and compare to original matrix
         let diag = Array2::from_diag(&vals);
@@ -530,17 +544,17 @@ mod tests {
 
         // check that for the same matrix all eigenvalues are one
         let (vals, _) =
-            sorted_eig(matrix.view(), Some(matrix.view()), 10, &Order::Largest).unwrap();
+            sorted_eig(matrix.view(), Some(matrix.view()), 10, Order::Largest).unwrap();
 
         assert_abs_diff_eq!(vals, Array1::from_elem(10, 1.0), epsilon = 1e-4);
 
         let (vals1, _) =
-            sorted_eig(matrix.view(), Some(identity.view()), 10, &Order::Largest).unwrap();
+            sorted_eig(matrix.view(), Some(identity.view()), 10, Order::Largest).unwrap();
         let (vals2, _) = sorted_eig(
             identity.view(),
             Some(matrix_inv.view()),
             10,
-            &Order::Largest,
+            Order::Largest,
         )
         .unwrap();
 

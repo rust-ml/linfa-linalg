@@ -1,4 +1,4 @@
-//! Decomposition with LOBPCG
+
 //!
 //! Locally Optimal Block Preconditioned Conjugate Gradient (LOBPCG) is a matrix-free method for
 //! finding the large (or smallest) eigenvalues and the corresponding eigenvectors of a symmetric
@@ -19,7 +19,7 @@ mod eig;
 mod svd;
 
 use ndarray::prelude::*;
-use ndarray::DataOwned;
+use ndarray::OwnedRepr;
 use rand::distributions::Standard;
 use rand::prelude::*;
 
@@ -28,14 +28,12 @@ pub use eig::{TruncatedEig, TruncatedEigIterator};
 pub use svd::{MagnitudeCorrection, TruncatedSvd};
 
 /// Generate random array
-pub fn random<A, S, Sh, D>(sh: Sh) -> ArrayBase<S, D>
+pub(crate) fn random<A, Sh, D, R: Rng>(sh: Sh, mut rng: R) -> ArrayBase<OwnedRepr<A>, D>
 where
     A: NdFloat,
-    S: DataOwned<Elem = A>,
     D: Dimension,
     Sh: ShapeBuilder<Dim = D>,
     Standard: Distribution<A>,
 {
-    let mut rng = thread_rng();
     ArrayBase::from_shape_fn(sh, |_| rng.gen::<A>())
 }
