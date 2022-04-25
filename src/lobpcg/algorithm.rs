@@ -5,17 +5,10 @@ use crate::{cholesky::*, eigh::*, norm::*, triangular::*};
 ///which can be used as a solver for large symmetric eigenproblems.
 use crate::{LinalgError, Result};
 use ndarray::prelude::*;
-use ndarray::{concatenate, Data, ScalarOperand};
+use ndarray::{concatenate, ScalarOperand};
 use num_traits::{Float, NumCast};
 
 use std::iter::Sum;
-
-/// Find largest or smallest eigenvalues
-#[derive(Debug, Copy, Clone)]
-pub enum Order {
-    Largest,
-    Smallest,
-}
 
 /// The result of the eigensolver
 ///
@@ -24,32 +17,29 @@ pub enum Order {
 /// during the process, it is returned in `LobpcgResult::Err`, but the best result is still returned,
 /// as it could be usable. If there is no result at all, then `LobpcgResult::NoResult` is returned.
 /// This happens if the algorithm fails in an early stage, for example if the matrix `A` is not SPD
-#[derive(Debug)]
-pub enum LobpcgResult<A> {
-    Ok(Array1<A>, Array2<A>, Vec<A>),
-    Err(Array1<A>, Array2<A>, Vec<A>, LinalgError),
-    NoResult(LinalgError),
-}
+pub type LobpcgResult<A> = std::result::Result<Inner<A>, (LinalgError, Option<Inner<A>>)>;
+pub type Inner<A> = (Array1<A>, Array2<A>, Vec<A>);
+
 
 /// Solve the generalized eigenvalue problem with pencil (A, B)
-fn generalized_eig<S: Data<Elem = A>, A: NdFloat>(
-    a: ArrayBase<S, Ix2>,
-    b: ArrayBase<S, Ix2>,
+fn generalized_eig<A: NdFloat>(
+    a: Array2<A>,
+    b: Array2<A>,
 ) -> Result<(Array1<A>, Array2<A>)> {
-    let (vals_b, vecs_b) = b.eigh()?;
+    let (vals_b, vecs_b) = b.eigh_into()?;
     let vals_b_recip = vals_b.mapv_into(|x| (x.max(A::from(1e-10f32).unwrap())).sqrt().recip());
     let vecs_b_tilde = vecs_b * vals_b_recip;
     let a_tilde = vecs_b_tilde.t().dot(&a.dot(&vecs_b_tilde));
-    let (vals_a, vecs_a) = a_tilde.eigh()?;
+    let (vals_a, vecs_a) = a_tilde.eigh_into()?;
     let vecs = vecs_b_tilde.dot(&vecs_a);
 
     Ok((vals_a, vecs))
 }
 
 /// Solve full eigenvalue problem, sort by `order` and truncate to `size`
-fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
-    a: ArrayBase<S, Ix2>,
-    b: Option<ArrayBase<S, Ix2>>,
+fn sorted_eig<A: NdFloat>(
+    a: Array2<A>,
+    b: Option<Array2<A>>,
     size: usize,
     order: Order,
 ) -> Result<(Array1<A>, Array2<A>)> {
@@ -57,7 +47,7 @@ fn sorted_eig<S: Data<Elem = A>, A: NdFloat>(
 
     let res = match b {
         Some(b) => generalized_eig(a, b)?,
-        _ => a.eigh()?.sort_eig(false),
+        _ => a.eigh_into()?,
     };
 
     // sort and ensure that signs are deterministic
@@ -96,23 +86,10 @@ fn apply_constraints<A: NdFloat>(
 ) {
     let gram_yv = y.t().dot(&v);
 
-    /*
-    let u = gram_yv
-        .columns()
-        .into_iter()
-        .map(|x| {
-            let res = cholesky_yy.solve_triangular(&x, UPLO::Upper)?;
+    let u = cholesky_yy.solve_triangular_into(gram_yv, UPLO::Lower).unwrap();
 
-            res.to_vec()
-        })
-        .flatten()
-        .collect::<Vec<A>>();
-
-    let rows = gram_yv.len_of(Axis(0));
-    let u = Array2::from_shape_vec((rows, u.len() / rows), u).unwrap();*/
-    let u = cholesky_yy.solve_triangular(&gram_yv, UPLO::Lower).unwrap();
-
-    v -= &(y.dot(&u));
+    // performs `v = -1 y . u + 1 v`, therefore `v -= y.u`
+    ndarray::linalg::general_mat_mul(-A::one(), &y, &u, A::one(), &mut v);
 }
 
 /// Orthonormalize `V` with Cholesky factorization
@@ -128,9 +105,9 @@ fn orthonormalize<T: NdFloat>(v: Array2<T>) -> Result<(Array2<T>, Array2<T>)> {
     //    epsilon=NumCast::from(1e-5).unwrap(),
     //);
 
-    let mut v_t = v.reversed_axes();
+    let v_t = v.reversed_axes();
     let u = gram_vv_fac
-        .solve_triangular(&mut v_t, UPLO::Lower)?
+        .solve_triangular_into(v_t, UPLO::Lower)?
         .reversed_axes();
 
     Ok((u, gram_vv_fac))
@@ -191,7 +168,7 @@ pub fn lobpcg<
 
     // calculate cholesky factorization of YY' and apply constraints to initial guess
     let cholesky_yy = y.as_ref().map(|y| {
-        let cholesky_yy = y.t().dot(y).cholesky().unwrap();
+        let cholesky_yy = y.t().dot(y).cholesky_into().unwrap();
         apply_constraints(x.view_mut(), &cholesky_yy, y.view());
         cholesky_yy
     });
@@ -207,7 +184,7 @@ pub fn lobpcg<
     let xax = x.t().dot(&ax);
 
     // perform eigenvalue decomposition of XAX
-    let (mut lambda, eig_block) = match sorted_eig(xax.view(), None, size_x, order) {
+    let (mut lambda, eig_block) = match sorted_eig(xax, None, size_x, order) {
         Ok(x) => x,
         Err(err) => return LobpcgResult::NoResult(err),
     };
@@ -494,7 +471,7 @@ mod tests {
         let matrix = matrix.t().dot(&matrix);
 
         // return all eigenvectors with largest first
-        let (vals, vecs) = sorted_eig(matrix.view(), None, 10, Order::Largest).unwrap();
+        let (vals, vecs) = sorted_eig(matrix.clone(), None, 10, Order::Largest).unwrap();
 
         // calculate V * A * V' and compare to original matrix
         let diag = Array2::from_diag(&vals);
@@ -544,15 +521,15 @@ mod tests {
 
         // check that for the same matrix all eigenvalues are one
         let (vals, _) =
-            sorted_eig(matrix.view(), Some(matrix.view()), 10, Order::Largest).unwrap();
+            sorted_eig(matrix.clone(), Some(matrix.clone()), 10, Order::Largest).unwrap();
 
         assert_abs_diff_eq!(vals, Array1::from_elem(10, 1.0), epsilon = 1e-4);
 
         let (vals1, _) =
-            sorted_eig(matrix.view(), Some(identity.view()), 10, Order::Largest).unwrap();
+            sorted_eig(matrix, Some(identity.clone()), 10, Order::Largest).unwrap();
         let (vals2, _) = sorted_eig(
-            identity.view(),
-            Some(matrix_inv.view()),
+            identity,
+            Some(matrix_inv),
             10,
             Order::Largest,
         )

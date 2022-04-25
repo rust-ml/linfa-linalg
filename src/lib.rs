@@ -68,3 +68,10 @@ pub(crate) fn check_square<S: RawData>(arr: &ArrayBase<S, Ix2>) -> Result<usize>
         Ok(n)
     }
 }
+
+/// Find largest or smallest eigenvalues
+#[derive(Debug, Copy, Clone)]
+pub enum Order {
+    Largest,
+    Smallest,
+}
