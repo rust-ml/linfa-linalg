@@ -1,4 +1,3 @@
-
 //!
 //! Locally Optimal Block Preconditioned Conjugate Gradient (LOBPCG) is a matrix-free method for
 //! finding the large (or smallest) eigenvalues and the corresponding eigenvectors of a symmetric
@@ -23,7 +22,8 @@ use ndarray::OwnedRepr;
 use rand::distributions::Standard;
 use rand::prelude::*;
 
-pub use algorithm::{lobpcg, LobpcgResult, Order as TruncatedOrder};
+pub use crate::{LinalgError, Order};
+pub use algorithm::lobpcg;
 pub use eig::{TruncatedEig, TruncatedEigIterator};
 pub use svd::{MagnitudeCorrection, TruncatedSvd};
 
@@ -36,4 +36,18 @@ where
     Standard: Distribution<A>,
 {
     ArrayBase::from_shape_fn(sh, |_| rng.gen::<A>())
+}
+
+/// The result of the eigensolver
+///
+/// In the best case the eigensolver has converged with a result better than the given threshold,
+/// then a `LobpcgResult::Ok` gives the eigenvalues, eigenvectors and norms. If an error ocurred
+/// during the process, it is returned in `LobpcgResult::Err`, but the best result is still returned,
+/// as it could be usable. If there is no result at all, then `LobpcgResult::NoResult` is returned.
+/// This happens if the algorithm fails in an early stage, for example if the matrix `A` is not SPD
+pub type LobpcgResult<A> = std::result::Result<Lobpcg<A>, (LinalgError, Option<Lobpcg<A>>)>;
+pub struct Lobpcg<A> {
+    evals: Array1<A>,
+    evecs: Array2<A>,
+    rnorm: Vec<A>,
 }

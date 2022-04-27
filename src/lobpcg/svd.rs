@@ -1,16 +1,18 @@
-use super::random;
+use crate::Result;
 ///! Truncated singular value decomposition
 ///!
 ///! This module computes the k largest/smallest singular values/vectors for a dense matrix.
-use crate::lobpcg::{lobpcg, LobpcgResult, TruncatedOrder as Order};
-use crate::Result;
+use crate::{
+    lobpcg::{lobpcg, random, Lobpcg},
+    Order,
+};
 use ndarray::prelude::*;
 use num_traits::{Float, NumCast};
 use std::iter::Sum;
 use std::ops::DivAssign;
 
+use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
-use rand::{SeedableRng, Rng};
 
 /// The result of a eigenvalue decomposition, not yet transformed into singular values/vectors
 ///
@@ -98,7 +100,7 @@ pub struct TruncatedSvd<A: NdFloat, R: Rng> {
     problem: Array2<A>,
     precision: f32,
     maxiter: usize,
-    rng: R
+    rng: R,
 }
 
 impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A, Xoshiro256Plus> {
@@ -184,7 +186,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedSvd<A, R>
                 None,
                 precision,
                 self.maxiter,
-                self.order.clone(),
+                self.order,
             )
         } else {
             lobpcg(
@@ -194,21 +196,21 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedSvd<A, R>
                 None,
                 precision,
                 self.maxiter,
-                self.order.clone(),
+                self.order,
             )
         };
 
         // convert into TruncatedSvdResult
         match res {
-            LobpcgResult::Ok(vals, vecs, _) | LobpcgResult::Err(vals, vecs, _, _) => {
+            Ok(Lobpcg { evals, evecs, .. }) | Err((_, Some(Lobpcg { evals, evecs, .. }))) => {
                 Ok(TruncatedSvdResult {
                     problem: self.problem,
-                    eigvals: vals,
-                    eigvecs: vecs,
+                    eigvals: evals,
+                    eigvecs: evecs,
                     ngm: n > m,
                 })
             }
-            LobpcgResult::NoResult(err) => Err(err),
+            Err((err, None)) => Err(err),
         }
     }
 }
@@ -240,11 +242,11 @@ mod tests {
     use super::TruncatedSvd;
 
     use approx::assert_abs_diff_eq;
-    use ndarray::{arr1, arr2, s, Array1, Array2, NdFloat, ArrayBase};
+    use ndarray::{arr1, arr2, s, Array1, Array2, ArrayBase, NdFloat};
     use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
+    use rand::distributions::{Distribution, Standard};
+    use rand::{Rng, SeedableRng};
     use rand_xoshiro::Xoshiro256Plus;
-    use rand::distributions::{Standard, Distribution};
-    use rand::{SeedableRng, Rng};
 
     /// Generate random array
     fn random<A>(sh: (usize, usize)) -> Array2<A>

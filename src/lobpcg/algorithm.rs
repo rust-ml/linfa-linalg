@@ -1,31 +1,19 @@
-use crate::{cholesky::*, eigh::*, norm::*, triangular::*};
+use ndarray::prelude::*;
+use ndarray::{concatenate, ScalarOperand};
+use num_traits::{Float, NumCast};
 ///! Locally Optimal Block Preconditioned Conjugated
 ///!
 ///! This module implements the Locally Optimal Block Preconditioned Conjugated (LOBPCG) algorithm,
 ///which can be used as a solver for large symmetric eigenproblems.
-use crate::{LinalgError, Result};
-use ndarray::prelude::*;
-use ndarray::{concatenate, ScalarOperand};
-use num_traits::{Float, NumCast};
-
 use std::iter::Sum;
 
-/// The result of the eigensolver
-///
-/// In the best case the eigensolver has converged with a result better than the given threshold,
-/// then a `LobpcgResult::Ok` gives the eigenvalues, eigenvectors and norms. If an error ocurred
-/// during the process, it is returned in `LobpcgResult::Err`, but the best result is still returned,
-/// as it could be usable. If there is no result at all, then `LobpcgResult::NoResult` is returned.
-/// This happens if the algorithm fails in an early stage, for example if the matrix `A` is not SPD
-pub type LobpcgResult<A> = std::result::Result<Inner<A>, (LinalgError, Option<Inner<A>>)>;
-pub type Inner<A> = (Array1<A>, Array2<A>, Vec<A>);
+use crate::{cholesky::*, eigh::*, norm::*, triangular::*};
+use crate::{LinalgError, Order, Result};
 
+use super::{Lobpcg, LobpcgResult};
 
 /// Solve the generalized eigenvalue problem with pencil (A, B)
-fn generalized_eig<A: NdFloat>(
-    a: Array2<A>,
-    b: Array2<A>,
-) -> Result<(Array1<A>, Array2<A>)> {
+fn generalized_eig<A: NdFloat>(a: Array2<A>, b: Array2<A>) -> Result<(Array1<A>, Array2<A>)> {
     let (vals_b, vecs_b) = b.eigh_into()?;
     let vals_b_recip = vals_b.mapv_into(|x| (x.max(A::from(1e-10f32).unwrap())).sqrt().recip());
     let vecs_b_tilde = vecs_b * vals_b_recip;
@@ -68,7 +56,9 @@ fn sorted_eig<A: NdFloat>(
 fn ndarray_mask<A: NdFloat>(matrix: ArrayView2<A>, mask: &[bool]) -> Array2<A> {
     assert_eq!(mask.len(), matrix.ncols());
 
-    let indices = mask.iter().enumerate()
+    let indices = mask
+        .iter()
+        .enumerate()
         .filter(|(_, b)| **b)
         .map(|(a, _)| a)
         .collect::<Vec<usize>>();
@@ -86,7 +76,9 @@ fn apply_constraints<A: NdFloat>(
 ) {
     let gram_yv = y.t().dot(&v);
 
-    let u = cholesky_yy.solve_triangular_into(gram_yv, UPLO::Lower).unwrap();
+    let u = cholesky_yy
+        .solve_triangular_into(gram_yv, UPLO::Lower)
+        .unwrap();
 
     // performs `v = -1 y . u + 1 v`, therefore `v -= y.u`
     ndarray::linalg::general_mat_mul(-A::one(), &y, &u, A::one(), &mut v);
@@ -150,7 +142,13 @@ pub fn lobpcg<
     // n is the dimensionality of the problem
     let (n, size_x) = (x.nrows(), x.ncols());
     if size_x > n {
-        return LobpcgResult::NoResult(LinalgError::NotThin { rows: size_x, cols: n});
+        return Err((
+            LinalgError::NotThin {
+                rows: size_x,
+                cols: n,
+            },
+            None,
+        ));
     }
 
     /*let size_y = match y {
@@ -176,7 +174,7 @@ pub fn lobpcg<
     // orthonormalize the initial guess
     let (x, _) = match orthonormalize(x) {
         Ok(x) => x,
-        Err(err) => return LobpcgResult::NoResult(err),
+        Err(err) => return Err((err, None)),
     };
 
     // calculate AX and XAX for Rayleigh quotient
@@ -184,10 +182,8 @@ pub fn lobpcg<
     let xax = x.t().dot(&ax);
 
     // perform eigenvalue decomposition of XAX
-    let (mut lambda, eig_block) = match sorted_eig(xax, None, size_x, order) {
-        Ok(x) => x,
-        Err(err) => return LobpcgResult::NoResult(err),
-    };
+    let (mut lambda, eig_block) =
+        sorted_eig(xax, None, size_x, order).map_err(|err| (err, None))?;
 
     // initiate approximation of the eigenvector
     let mut x = x.dot(&eig_block);
@@ -265,7 +261,14 @@ pub fn lobpcg<
             apply_constraints(active_block_r.view_mut(), cholesky_yy, y.view());
         }
         // orthogonalize the preconditioned residual to x
-        active_block_r -= &x.dot(&x.t().dot(&active_block_r));
+        // performs `v = -1 y . u + 1 v`, therefore `v -= y.u`
+        ndarray::linalg::general_mat_mul(
+            -A::one(),
+            &x,
+            &x.t().dot(&active_block_r),
+            A::one(),
+            &mut active_block_r,
+        );
 
         let (r, _) = match orthonormalize(active_block_r) {
             Ok(x) => x,
@@ -431,28 +434,32 @@ pub fn lobpcg<
 
     // retrieve best result and convert norm into `A`
     let (vals, vecs, rnorm) = best_result.unwrap();
+    let res = Lobpcg {
+        evals: vals,
+        evecs: vecs,
+        rnorm,
+    };
 
     match final_norm {
-        Ok(_) => LobpcgResult::Ok(vals, vecs, rnorm),
-        Err(err) => LobpcgResult::Err(vals, vecs, rnorm, err),
+        Ok(_) => Ok(res),
+        Err(err) => Err((err, Some(res))),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::lobpcg;
     use super::ndarray_mask;
     use super::orthonormalize;
     use super::sorted_eig;
-    use super::LobpcgResult;
     use super::Order;
+    use super::{lobpcg, Lobpcg};
     use crate::qr::*;
     use approx::assert_abs_diff_eq;
     use ndarray::prelude::*;
+    use rand::distributions::{Distribution, Standard};
     use rand::Rng;
-    use rand_xoshiro::Xoshiro256Plus;
     use rand::SeedableRng;
-    use rand::distributions::{Standard, Distribution};
+    use rand_xoshiro::Xoshiro256Plus;
 
     /// Generate random array
     fn random<A>(sh: (usize, usize)) -> Array2<A>
@@ -525,15 +532,8 @@ mod tests {
 
         assert_abs_diff_eq!(vals, Array1::from_elem(10, 1.0), epsilon = 1e-4);
 
-        let (vals1, _) =
-            sorted_eig(matrix, Some(identity.clone()), 10, Order::Largest).unwrap();
-        let (vals2, _) = sorted_eig(
-            identity,
-            Some(matrix_inv),
-            10,
-            Order::Largest,
-        )
-        .unwrap();
+        let (vals1, _) = sorted_eig(matrix, Some(identity.clone()), 10, Order::Largest).unwrap();
+        let (vals2, _) = sorted_eig(identity, Some(matrix_inv), 10, Order::Largest).unwrap();
 
         assert_abs_diff_eq!(vals1, vals2, epsilon = 1e-5);
         //assert_abs_diff_eq!(vecs1, vecs2, epsilon=1e-5);
@@ -551,9 +551,9 @@ mod tests {
 
         let result = lobpcg(|y| a.dot(&y), x, |_| {}, None, 1e-6, n * 3, order);
         match result {
-            LobpcgResult::Ok(vals, _, r_norms) | LobpcgResult::Err(vals, _, r_norms, _) => {
+            Ok(Lobpcg { evals, rnorm, .. }) | Err((_, Some(Lobpcg { evals, rnorm, .. }))) => {
                 // check convergence
-                for (i, norm) in r_norms.into_iter().enumerate() {
+                for (i, norm) in rnorm.into_iter().enumerate() {
                     if norm > 1e-5 {
                         println!("==== Assertion Failed ====");
                         println!("The {}th eigenvalue estimation did not converge!", i);
@@ -565,12 +565,12 @@ mod tests {
                 if ground_truth_eigvals.len() == num {
                     assert_abs_diff_eq!(
                         &Array1::from(ground_truth_eigvals.to_vec()),
-                        &vals,
+                        &evals,
                         epsilon = num as f64 * 5e-5,
                     )
                 }
             }
-            LobpcgResult::NoResult(err) => panic!("Did not converge: {:?}", err),
+            Err((err, None)) => panic!("Did not converge: {:?}", err),
         }
     }
 
@@ -625,9 +625,21 @@ mod tests {
             Order::Smallest,
         );
         match result {
-            LobpcgResult::Ok(vals, vecs, r_norms) | LobpcgResult::Err(vals, vecs, r_norms, _) => {
+            Ok(Lobpcg {
+                evals,
+                evecs,
+                rnorm,
+            })
+            | Err((
+                _,
+                Some(Lobpcg {
+                    evals,
+                    evecs,
+                    rnorm,
+                }),
+            )) => {
                 // check convergence
-                for (i, norm) in r_norms.into_iter().enumerate() {
+                for (i, norm) in rnorm.into_iter().enumerate() {
                     if norm > 0.01 {
                         println!("==== Assertion Failed ====");
                         println!("The {}th eigenvalue estimation did not converge!", i);
@@ -636,14 +648,14 @@ mod tests {
                 }
 
                 // should be the third eigenvalue
-                assert_abs_diff_eq!(&vals, &Array1::from(vec![3.0]), epsilon = 1e-6);
+                assert_abs_diff_eq!(&evals, &Array1::from(vec![3.0]), epsilon = 1e-6);
                 assert_abs_diff_eq!(
-                    &vecs.column(0).mapv(|x| x.abs()),
+                    &evecs.column(0).mapv(|x| x.abs()),
                     &arr1(&[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
                     epsilon = 1e-5,
                 );
             }
-            LobpcgResult::NoResult(err) => panic!("Did not converge: {:?}", err),
+            Err((err, None)) => panic!("Did not converge: {:?}", err),
         }
     }
 }

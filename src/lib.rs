@@ -17,7 +17,7 @@ pub mod eigh;
 mod givens;
 mod householder;
 mod index;
-#[cfg(feature="iterative")]
+#[cfg(feature = "iterative")]
 pub mod lobpcg;
 pub mod norm;
 pub mod qr;

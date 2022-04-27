@@ -1,15 +1,18 @@
 //! Truncated eigenvalue decomposition
 //!
 use super::random;
-use crate::lobpcg::{lobpcg, LobpcgResult, TruncatedOrder as Order};
+use crate::{
+    lobpcg::{lobpcg, Lobpcg, LobpcgResult},
+    Order,
+};
 
 use ndarray::prelude::*;
 use ndarray::{stack, NdFloat};
 use num_traits::{Float, NumCast};
 use std::iter::Sum;
 
+use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
-use rand::{SeedableRng, Rng};
 
 /// Truncated eigenproblem solver
 ///
@@ -40,7 +43,7 @@ pub struct TruncatedEig<A: NdFloat, R: Rng> {
     preconditioner: Option<Array2<A>>,
     precision: f32,
     maxiter: usize,
-    rng: R
+    rng: R,
 }
 
 impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A, Xoshiro256Plus> {
@@ -140,7 +143,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedEig<A, R>
                 self.constraints.clone(),
                 self.precision,
                 self.maxiter,
-                self.order.clone(),
+                self.order,
             )
         } else {
             lobpcg(
@@ -150,7 +153,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedEig<A, R>
                 self.constraints.clone(),
                 self.precision,
                 self.maxiter,
-                self.order.clone(),
+                self.order,
             )
         }
     }
@@ -199,7 +202,9 @@ pub struct TruncatedEigIterator<A: NdFloat, R: Rng> {
     eig: TruncatedEig<A, R>,
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
+impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> Iterator
+    for TruncatedEigIterator<A, R>
+{
     type Item = (Array1<A>, Array2<A>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -211,9 +216,21 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> Iterator for Trunc
         let res = self.eig.decompose(step_size);
 
         match res {
-            LobpcgResult::Ok(vals, vecs, norms) | LobpcgResult::Err(vals, vecs, norms, _) => {
+            Ok(Lobpcg {
+                evals,
+                evecs,
+                rnorm,
+            })
+            | Err((
+                _,
+                Some(Lobpcg {
+                    evals,
+                    evecs,
+                    rnorm,
+                }),
+            )) => {
                 // abort if any eigenproblem did not converge
-                for r_norm in norms {
+                for r_norm in rnorm {
                     if r_norm > NumCast::from(0.1).unwrap() {
                         return None;
                     }
@@ -224,20 +241,20 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> Iterator for Trunc
                     let eigvecs_arr: Vec<_> = constraints
                         .columns()
                         .into_iter()
-                        .chain(vecs.columns().into_iter())
+                        .chain(evecs.columns().into_iter())
                         .collect();
 
                     stack(Axis(1), &eigvecs_arr).unwrap()
                 } else {
-                    vecs.clone()
+                    evecs.clone()
                 };
 
                 self.eig.constraints = Some(new_constraints);
                 self.remaining -= step_size;
 
-                Some((vals, vecs))
+                Some((evals, evecs))
             }
-            LobpcgResult::NoResult(_) => None,
+            Err((_, _)) => None,
         }
     }
 }
