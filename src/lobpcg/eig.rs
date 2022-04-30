@@ -8,12 +8,13 @@ use crate::{
 
 use ndarray::prelude::*;
 use ndarray::{stack, NdFloat};
-use num_traits::{Float, NumCast};
+use num_traits::NumCast;
 use std::iter::Sum;
 
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 
+#[derive(Debug, Clone)]
 /// Truncated eigenproblem solver
 ///
 /// This struct wraps the LOBPCG algorithm and provides convenient builder-pattern access to
@@ -46,7 +47,7 @@ pub struct TruncatedEig<A: NdFloat, R: Rng> {
     rng: R,
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A, Xoshiro256Plus> {
+impl<A: NdFloat + Sum> TruncatedEig<A, Xoshiro256Plus> {
     /// Create a new truncated eigenproblem solver
     ///
     /// # Properties
@@ -65,7 +66,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedEig<A, Xoshiro256
     }
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedEig<A, R> {
+impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
     /// Set desired precision
     ///
     /// This argument specifies the desired precision, which is passed to the LOBPCG solver. It
@@ -159,7 +160,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedEig<A, R>
     }
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> IntoIterator for TruncatedEig<A, R> {
+impl<A: NdFloat + Sum, R: Rng> IntoIterator for TruncatedEig<A, R> {
     type Item = (Array1<A>, Array2<A>);
     type IntoIter = TruncatedEigIterator<A, R>;
 
@@ -202,7 +203,7 @@ pub struct TruncatedEigIterator<A: NdFloat, R: Rng> {
     eig: TruncatedEig<A, R>,
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> Iterator
+impl<A: NdFloat + Sum, R: Rng> Iterator
     for TruncatedEigIterator<A, R>
 {
     type Item = (Array1<A>, Array2<A>);

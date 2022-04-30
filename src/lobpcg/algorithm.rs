@@ -1,6 +1,6 @@
 use ndarray::prelude::*;
-use ndarray::{concatenate, ScalarOperand};
-use num_traits::{Float, NumCast};
+use ndarray::concatenate;
+use num_traits::NumCast;
 ///! Locally Optimal Block Preconditioned Conjugated
 ///!
 ///! This module implements the Locally Optimal Block Preconditioned Conjugated (LOBPCG) algorithm,
@@ -126,7 +126,7 @@ fn orthonormalize<T: NdFloat>(v: Array2<T>) -> Result<(Array2<T>, Array2<T>)> {
 /// special variant `LobpcgResult::NotConverged` additionally carries the error. This can happen when
 /// the precision of the matrix is too low (switch then from `f32` to `f64` for example).
 pub fn lobpcg<
-    A: Float + NdFloat + Sum + ScalarOperand + PartialOrd + Default,
+    A: NdFloat + Sum,
     F: Fn(ArrayView2<A>) -> Array2<A>,
     G: Fn(ArrayViewMut2<A>),
 >(
@@ -326,7 +326,7 @@ pub fn lobpcg<
             .and_then(|(active_ap, (active_p, p_r))| {
                 // orthonormalize AP with R^{-1} of A
                 let active_ap = active_ap.reversed_axes();
-                p_r.solve_triangular(&active_ap, UPLO::Lower)
+                p_r.solve_triangular_into(active_ap, UPLO::Lower)
                     .map(|active_ap| (active_p, active_ap.reversed_axes()))
                     .ok()
             });

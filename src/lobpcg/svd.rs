@@ -1,15 +1,14 @@
-use crate::Result;
 ///! Truncated singular value decomposition
 ///!
 ///! This module computes the k largest/smallest singular values/vectors for a dense matrix.
 use crate::{
     lobpcg::{lobpcg, random, Lobpcg},
     Order,
+    Result
 };
 use ndarray::prelude::*;
-use num_traits::{Float, NumCast};
+use num_traits::NumCast;
 use std::iter::Sum;
-use std::ops::DivAssign;
 
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
@@ -18,7 +17,7 @@ use rand_xoshiro::Xoshiro256Plus;
 ///
 /// Provides methods for either calculating just the singular values with reduced cost or the
 /// vectors with additional cost of matrix multiplication.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TruncatedSvdResult<A> {
     eigvals: Array1<A>,
     eigvecs: Array2<A>,
@@ -26,7 +25,7 @@ pub struct TruncatedSvdResult<A> {
     ngm: bool,
 }
 
-impl<A: Float + PartialOrd + DivAssign<A> + 'static + MagnitudeCorrection> TruncatedSvdResult<A> {
+impl<A: NdFloat + 'static + MagnitudeCorrection> TruncatedSvdResult<A> {
     /// Returns singular values ordered by magnitude with indices.
     fn singular_values_with_indices(&self) -> (Array1<A>, Vec<usize>) {
         // numerate eigenvalues
@@ -91,6 +90,7 @@ impl<A: Float + PartialOrd + DivAssign<A> + 'static + MagnitudeCorrection> Trunc
     }
 }
 
+#[derive(Debug, Clone)]
 /// Truncated singular value decomposition
 ///
 /// Wraps the LOBPCG algorithm and provides convenient builder-pattern access to
@@ -103,7 +103,7 @@ pub struct TruncatedSvd<A: NdFloat, R: Rng> {
     rng: R,
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A, Xoshiro256Plus> {
+impl<A: NdFloat + Sum> TruncatedSvd<A, Xoshiro256Plus> {
     /// Create a new truncated SVD problem
     ///
     /// # Parameters
@@ -120,7 +120,7 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum> TruncatedSvd<A, Xoshiro256
     }
 }
 
-impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedSvd<A, R> {
+impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// Set the required precision of the solution
     ///
     /// The precision is, in the context of SVD, the square-root precision of the underlying
@@ -167,7 +167,6 @@ impl<A: Float + NdFloat + PartialOrd + Default + Sum, R: Rng> TruncatedSvd<A, R>
         if num < 1 {
             panic!("The number of singular values to compute should be larger than zero!");
         }
-
         let (n, m) = (self.problem.nrows(), self.problem.ncols());
 
         // generate initial matrix
