@@ -26,12 +26,12 @@ use rand_xoshiro::Xoshiro256Plus;
 ///
 /// ```rust
 /// use ndarray::{arr1, Array2};
-/// use ndarray_linalg_rs::lobpcg::{TruncatedEig, TruncatedOrder};
+/// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
 ///
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
 ///
-/// let eig = TruncatedEig::new(a, TruncatedOrder::Largest)
+/// let eig = TruncatedEig::new(a, Order::Largest)
 ///    .precision(1e-5)
 ///    .maxiter(500);
 ///
@@ -52,7 +52,7 @@ impl<A: NdFloat + Sum> TruncatedEig<A, Xoshiro256Plus> {
     ///
     /// # Properties
     /// * `problem`: problem matrix
-    /// * `order`: ordering of the eigenvalues with [TruncatedOrder](crate::TruncatedOrder)
+    /// * `order`: ordering of the eigenvalues with [Order](crate::Order)
     pub fn new(problem: Array2<A>, order: Order) -> TruncatedEig<A, Xoshiro256Plus> {
         Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(42))
     }
@@ -63,7 +63,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
     ///
     /// # Properties
     /// * `problem`: problem matrix
-    /// * `order`: ordering of the eigenvalues with [TruncatedOrder](crate::TruncatedOrder)
+    /// * `order`: ordering of the eigenvalues with [Order](crate::Order)
     /// * `rng`: random number generator
     pub fn new_with_rng(problem: Array2<A>, order: Order, rng: R) -> TruncatedEig<A, R> {
         TruncatedEig {
@@ -133,12 +133,12 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
     ///
     /// ```rust
     /// use ndarray::{arr1, Array2};
-    /// use ndarray_linalg_rs::lobpcg::{TruncatedEig, TruncatedOrder};
+    /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
     ///
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let eig = TruncatedEig::new(a, TruncatedOrder::Largest)
+    /// let eig = TruncatedEig::new(a, Order::Largest)
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
@@ -194,12 +194,12 @@ impl<A: NdFloat + Sum, R: Rng> IntoIterator for TruncatedEig<A, R> {
 ///
 /// ```rust
 /// use ndarray::{arr1, Array2};
-/// use ndarray_linalg_rs::lobpcg::{TruncatedEig, TruncatedOrder};
+/// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
 ///
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
 ///
-/// let teig = TruncatedEig::new(a, TruncatedOrder::Largest)
+/// let teig = TruncatedEig::new(a, Order::Largest)
 ///     .precision(1e-5)
 ///     .maxiter(500);
 ///

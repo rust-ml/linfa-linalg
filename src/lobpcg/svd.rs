@@ -174,12 +174,12 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     ///
     /// ```rust
     /// use ndarray::{arr1, Array2};
-    /// use ndarray_linalg_rs::lobpcg::{TruncatedSvd, TruncatedOrder};
+    /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedSvd};
     ///
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let eig = TruncatedSvd::new(a, TruncatedOrder::Largest)
+    /// let eig = TruncatedSvd::new(a, Order::Largest)
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
