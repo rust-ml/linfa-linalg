@@ -1,5 +1,5 @@
-use ndarray::prelude::*;
 use ndarray::concatenate;
+use ndarray::prelude::*;
 use num_traits::NumCast;
 ///! Locally Optimal Block Preconditioned Conjugated
 ///!
@@ -125,11 +125,7 @@ fn orthonormalize<T: NdFloat>(v: Array2<T>) -> Result<(Array2<T>, Array2<T>)> {
 /// for it. All iterations are tracked and the optimal solution returned. In case of an error a
 /// special variant `LobpcgResult::NotConverged` additionally carries the error. This can happen when
 /// the precision of the matrix is too low (switch then from `f32` to `f64` for example).
-pub fn lobpcg<
-    A: NdFloat + Sum,
-    F: Fn(ArrayView2<A>) -> Array2<A>,
-    G: Fn(ArrayViewMut2<A>),
->(
+pub fn lobpcg<A: NdFloat + Sum, F: Fn(ArrayView2<A>) -> Array2<A>, G: Fn(ArrayViewMut2<A>)>(
     a: F,
     mut x: Array2<A>,
     m: G,
@@ -172,10 +168,7 @@ pub fn lobpcg<
     });
 
     // orthonormalize the initial guess
-    let (x, _) = match orthonormalize(x) {
-        Ok(x) => x,
-        Err(err) => return Err((err, None)),
-    };
+    let (x, _) = orthonormalize(x).map_err(|err| (err, None))?;
 
     // calculate AX and XAX for Rayleigh quotient
     let ax = a(x.view());
@@ -457,7 +450,6 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use ndarray::prelude::*;
     use rand::distributions::{Distribution, Standard};
-    use rand::Rng;
     use rand::SeedableRng;
     use rand_xoshiro::Xoshiro256Plus;
 
@@ -467,8 +459,8 @@ mod tests {
         A: NdFloat,
         Standard: Distribution<A>,
     {
-        let mut rng = Xoshiro256Plus::seed_from_u64(3);
-        ArrayBase::from_shape_fn(sh, |_| rng.gen::<A>())
+        let rng = Xoshiro256Plus::seed_from_u64(3);
+        crate::lobpcg::random(sh, rng)
     }
 
     /// Test the `sorted_eigen` function

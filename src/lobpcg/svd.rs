@@ -3,8 +3,7 @@
 ///! This module computes the k largest/smallest singular values/vectors for a dense matrix.
 use crate::{
     lobpcg::{lobpcg, random, Lobpcg},
-    Order,
-    Result
+    LinalgError, Order, Result,
 };
 use ndarray::prelude::*;
 use num_traits::NumCast;
@@ -22,6 +21,7 @@ pub struct TruncatedSvdResult<A> {
     eigvals: Array1<A>,
     eigvecs: Array2<A>,
     problem: Array2<A>,
+    order: Order,
     ngm: bool,
 }
 
@@ -31,20 +31,30 @@ impl<A: NdFloat + 'static + MagnitudeCorrection> TruncatedSvdResult<A> {
         // numerate eigenvalues
         let mut a = self.eigvals.iter().enumerate().collect::<Vec<_>>();
 
-        // sort by magnitude
-        a.sort_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap().reverse());
+        let (values, indices) = if self.order == Order::Largest {
+            // sort by magnitude
+            a.sort_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap().reverse());
 
-        // calculate cut-off magnitude (borrowed from scipy)
-        let cutoff = A::epsilon() * // float precision
-                     A::correction() * // correction term (see trait below)
-                     *a[0].1; // max eigenvalue
+            // calculate cut-off magnitude (borrowed from scipy)
+            let cutoff = A::epsilon() * // float precision
+                         A::correction() * // correction term (see trait below)
+                         *a[0].1; // max eigenvalue
 
-        // filter low singular values away
-        let (values, indices): (Vec<A>, Vec<usize>) = a
-            .into_iter()
-            .filter(|(_, x)| *x > &cutoff)
-            .map(|(a, b)| (b.sqrt(), a))
-            .unzip();
+            // filter low singular values away
+            let (values, indices): (Vec<A>, Vec<usize>) = a
+                .into_iter()
+                .filter(|(_, x)| *x > &cutoff)
+                .map(|(a, b)| (b.sqrt(), a))
+                .unzip();
+
+            (values, indices)
+        } else {
+            a.sort_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap());
+
+            let (values, indices) = a.into_iter().map(|(a, b)| (b.sqrt(), a)).unzip();
+
+            (values, indices)
+        };
 
         (Array1::from(values), indices)
     }
@@ -110,12 +120,24 @@ impl<A: NdFloat + Sum> TruncatedSvd<A, Xoshiro256Plus> {
     ///  * `problem`: rectangular matrix which is decomposed
     ///  * `order`: whether to return large or small (close to zero) singular values
     pub fn new(problem: Array2<A>, order: Order) -> TruncatedSvd<A, Xoshiro256Plus> {
+        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(42))
+    }
+}
+
+impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
+    /// Create a new truncated SVD problem
+    ///
+    /// # Parameters
+    ///  * `problem`: rectangular matrix which is decomposed
+    ///  * `order`: whether to return large or small (close to zero) singular values
+    ///  * `rng`: random number generator
+    pub fn new_with_rng(problem: Array2<A>, order: Order, rng: R) -> TruncatedSvd<A, R> {
         TruncatedSvd {
             precision: 1e-5,
             maxiter: problem.len_of(Axis(0)) * 2,
             order,
             problem,
-            rng: Xoshiro256Plus::seed_from_u64(42),
+            rng,
         }
     }
 }
@@ -165,8 +187,13 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// ```
     pub fn decompose(mut self, num: usize) -> Result<TruncatedSvdResult<A>> {
         if num < 1 {
-            panic!("The number of singular values to compute should be larger than zero!");
+            return Err(LinalgError::InvalidHyperparam {
+                name: "number of singular values".into(),
+                constrain: "> 0".into(),
+                value: num.to_string(),
+            });
         }
+
         let (n, m) = (self.problem.nrows(), self.problem.ncols());
 
         // generate initial matrix
@@ -206,6 +233,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
                     problem: self.problem,
                     eigvals: evals,
                     eigvecs: evecs,
+                    order: self.order,
                     ngm: n > m,
                 })
             }
@@ -241,10 +269,10 @@ mod tests {
     use super::TruncatedSvd;
 
     use approx::assert_abs_diff_eq;
-    use ndarray::{arr1, arr2, s, Array1, Array2, ArrayBase, NdFloat};
+    use ndarray::{arr1, arr2, s, Array1, Array2, NdFloat};
     use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
     use rand::distributions::{Distribution, Standard};
-    use rand::{Rng, SeedableRng};
+    use rand::SeedableRng;
     use rand_xoshiro::Xoshiro256Plus;
 
     /// Generate random array
@@ -253,8 +281,8 @@ mod tests {
         A: NdFloat,
         Standard: Distribution<A>,
     {
-        let mut rng = Xoshiro256Plus::seed_from_u64(3);
-        ArrayBase::from_shape_fn(sh, |_| rng.gen::<A>())
+        let rng = Xoshiro256Plus::seed_from_u64(3);
+        super::random(sh, rng)
     }
 
     #[test]

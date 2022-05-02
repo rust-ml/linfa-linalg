@@ -53,6 +53,12 @@ pub enum LinalgError {
     /// Wrong number of rows in matrix
     #[error("Matrix must have {expected} rows, not {actual}")]
     WrongRows { expected: usize, actual: usize },
+    #[error("Hyperparameter {name} should be {constrain}, but was {value}")]
+    InvalidHyperparam {
+        name: String,
+        constrain: String,
+        value: String,
+    },
     /// ShapeError from `ndarray`
     #[error(transparent)]
     Shape(#[from] ShapeError),
@@ -70,7 +76,7 @@ pub(crate) fn check_square<S: RawData>(arr: &ArrayBase<S, Ix2>) -> Result<usize>
 }
 
 /// Find largest or smallest eigenvalues
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Order {
     Largest,
     Smallest,

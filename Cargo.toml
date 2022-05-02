@@ -15,13 +15,13 @@ num-traits = "0.2.0"
 thiserror = "1"
 rand = { version = "0.8", optional=true }
 rand_xoshiro = { version = "0.6", optional=true }
-ndarray-rand = { version = "0.14", optional=true }
 
 [dev-dependencies]
 approx = "0.4"
 proptest = "1.0"
 proptest-derive = "0.2.0"
+ndarray-rand = "0.14"
 
 [features]
 default = ["iterative"]
-iterative = ["rand", "rand_xoshiro", "ndarray-rand"]
+iterative = ["rand", "rand_xoshiro"]

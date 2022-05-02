@@ -3,7 +3,7 @@
 use super::random;
 use crate::{
     lobpcg::{lobpcg, Lobpcg, LobpcgResult},
-    Order,
+    LinalgError, Order, Result,
 };
 
 use ndarray::prelude::*;
@@ -54,6 +54,18 @@ impl<A: NdFloat + Sum> TruncatedEig<A, Xoshiro256Plus> {
     /// * `problem`: problem matrix
     /// * `order`: ordering of the eigenvalues with [TruncatedOrder](crate::TruncatedOrder)
     pub fn new(problem: Array2<A>, order: Order) -> TruncatedEig<A, Xoshiro256Plus> {
+        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(42))
+    }
+}
+
+impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
+    /// Create a new truncated eigenproblem solver
+    ///
+    /// # Properties
+    /// * `problem`: problem matrix
+    /// * `order`: ordering of the eigenvalues with [TruncatedOrder](crate::TruncatedOrder)
+    /// * `rng`: random number generator
+    pub fn new_with_rng(problem: Array2<A>, order: Order, rng: R) -> TruncatedEig<A, R> {
         TruncatedEig {
             precision: 1e-5,
             maxiter: problem.len_of(Axis(0)) * 2,
@@ -61,7 +73,7 @@ impl<A: NdFloat + Sum> TruncatedEig<A, Xoshiro256Plus> {
             constraints: None,
             order,
             problem,
-            rng: Xoshiro256Plus::seed_from_u64(42),
+            rng,
         }
     }
 }
@@ -203,9 +215,25 @@ pub struct TruncatedEigIterator<A: NdFloat, R: Rng> {
     eig: TruncatedEig<A, R>,
 }
 
-impl<A: NdFloat + Sum, R: Rng> Iterator
-    for TruncatedEigIterator<A, R>
-{
+impl<A: NdFloat + Sum, R: Rng> TruncatedEigIterator<A, R> {
+    pub fn new(obj: TruncatedEig<A, R>, step_size: usize) -> Result<TruncatedEigIterator<A, R>> {
+        if step_size < 1 {
+            return Err(LinalgError::InvalidHyperparam {
+                name: "step size".into(),
+                constrain: "> 0".into(),
+                value: step_size.to_string(),
+            });
+        }
+
+        Ok(TruncatedEigIterator {
+            remaining: obj.problem.len_of(Axis(0)),
+            eig: obj,
+            step_size,
+        })
+    }
+}
+
+impl<A: NdFloat + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
     type Item = (Array1<A>, Array2<A>);
 
     fn next(&mut self) -> Option<Self::Item> {
