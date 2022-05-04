@@ -31,7 +31,7 @@ use rand_xoshiro::Xoshiro256Plus;
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
 ///
-/// let eig = TruncatedEig::new(a, Order::Largest)
+/// let mut eig = TruncatedEig::new(a, Order::Largest)
 ///    .precision(1e-5)
 ///    .maxiter(500);
 ///
@@ -138,7 +138,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let eig = TruncatedEig::new(a, Order::Largest)
+    /// let mut eig = TruncatedEig::new(a, Order::Largest)
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
@@ -182,6 +182,12 @@ impl<A: NdFloat + Sum, R: Rng> IntoIterator for TruncatedEig<A, R> {
             remaining: self.problem.len_of(Axis(0)),
             eig: self,
         }
+    }
+}
+
+impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
+    pub fn into_iter_step_size(self, step_size: usize) -> Result<TruncatedEigIterator<A, R>> {
+        TruncatedEigIterator::new(self, step_size)
     }
 }
 
