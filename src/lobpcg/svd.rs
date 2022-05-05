@@ -280,7 +280,7 @@ impl MagnitudeCorrection for f64 {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "rand_xoshiro"))]
 mod tests {
     use super::Order;
     use super::TruncatedSvd;

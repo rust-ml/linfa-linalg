@@ -306,7 +306,7 @@ impl<A: NdFloat + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "rand_xoshiro"))]
 mod tests {
     use super::Order;
     use super::TruncatedEig;

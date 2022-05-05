@@ -21,6 +21,7 @@ approx = "0.4"
 proptest = "1.0"
 proptest-derive = "0.2.0"
 ndarray-rand = "0.14"
+rand_xoshiro = { version = "0.6" }
 
 [features]
 default = ["iterative"]
