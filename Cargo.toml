@@ -24,4 +24,4 @@ ndarray-rand = "0.14"
 
 [features]
 default = ["iterative"]
-iterative = ["rand", "rand_xoshiro"]
+iterative = ["rand"]

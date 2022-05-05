@@ -3,14 +3,16 @@
 ///! This module computes the k largest/smallest singular values/vectors for a dense matrix.
 use crate::{
     lobpcg::{lobpcg, random, Lobpcg},
-    LinalgError, Order, Result,
+    Order, Result,
 };
 use ndarray::prelude::*;
 use num_traits::NumCast;
 use std::iter::Sum;
 
-use rand::{Rng, SeedableRng};
-use rand_xoshiro::Xoshiro256Plus;
+use rand::Rng;
+
+#[cfg(feature = "rand_xoshiro")]
+use rand_xoshiro::{rand_core::SeedableRng, Xoshiro256Plus};
 
 /// The result of a eigenvalue decomposition, not yet transformed into singular values/vectors
 ///
@@ -113,14 +115,20 @@ pub struct TruncatedSvd<A: NdFloat, R: Rng> {
     rng: R,
 }
 
+#[cfg(feature = "rand_xoshiro")]
 impl<A: NdFloat + Sum> TruncatedSvd<A, Xoshiro256Plus> {
     /// Create a new truncated SVD problem
     ///
     /// # Parameters
     ///  * `problem`: rectangular matrix which is decomposed
     ///  * `order`: whether to return large or small (close to zero) singular values
-    pub fn new(problem: Array2<A>, order: Order) -> TruncatedSvd<A, Xoshiro256Plus> {
-        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(42))
+    ///  * `seed`: seed of the random number generator
+    pub fn new_from_seed(
+        problem: Array2<A>,
+        order: Order,
+        seed: u64,
+    ) -> TruncatedSvd<A, Xoshiro256Plus> {
+        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(seed))
     }
 }
 
@@ -179,18 +187,21 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let eig = TruncatedSvd::new(a, Order::Largest)
+    /// let eig = TruncatedSvd::new_from_seed(a, Order::Largest, 42)
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
     /// let res = eig.decompose(3);
     /// ```
     pub fn decompose(mut self, num: usize) -> Result<TruncatedSvdResult<A>> {
-        if num < 1 {
-            return Err(LinalgError::InvalidHyperparam {
-                name: "number of singular values".into(),
-                constrain: "> 0".into(),
-                value: num.to_string(),
+        if num == 0 {
+            // return empty solution if requested eigenvalue number is zero
+            return Ok(TruncatedSvdResult {
+                eigvals: Array1::zeros(0),
+                eigvecs: Array2::zeros((0, 0)),
+                problem: Array2::zeros((0, 0)),
+                order: self.order,
+                ngm: false,
             });
         }
 
@@ -228,15 +239,21 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
 
         // convert into TruncatedSvdResult
         match res {
-            Ok(Lobpcg { evals, evecs, .. }) | Err((_, Some(Lobpcg { evals, evecs, .. }))) => {
-                Ok(TruncatedSvdResult {
-                    problem: self.problem,
-                    eigvals: evals,
-                    eigvecs: evecs,
-                    order: self.order,
-                    ngm: n > m,
-                })
-            }
+            Ok(Lobpcg {
+                eigvals, eigvecs, ..
+            })
+            | Err((
+                _,
+                Some(Lobpcg {
+                    eigvals, eigvecs, ..
+                }),
+            )) => Ok(TruncatedSvdResult {
+                problem: self.problem,
+                eigvals,
+                eigvecs,
+                order: self.order,
+                ngm: n > m,
+            }),
             Err((err, None)) => Err(err),
         }
     }
@@ -289,7 +306,7 @@ mod tests {
     fn test_truncated_svd() {
         let a = arr2(&[[3., 2., 2.], [2., 3., -2.]]);
 
-        let res = TruncatedSvd::new(a, Order::Largest)
+        let res = TruncatedSvd::new_from_seed(a, Order::Largest, 42)
             .precision(1e-5)
             .maxiter(10)
             .decompose(2)
@@ -304,7 +321,7 @@ mod tests {
     fn test_truncated_svd_random() {
         let a: Array2<f64> = random((50, 10));
 
-        let res = TruncatedSvd::new(a.clone(), Order::Largest)
+        let res = TruncatedSvd::new_from_seed(a.clone(), Order::Largest, 42)
             .precision(1e-5)
             .maxiter(10)
             .decompose(10)
@@ -332,7 +349,7 @@ mod tests {
         // generate normal distribution random data with N >> p
         let data = Array2::random_using((1000, 500), StandardNormal, &mut rng) / 1000f64.sqrt();
 
-        let res = TruncatedSvd::new(data, Order::Largest)
+        let res = TruncatedSvd::new_from_seed(data, Order::Largest, 42)
             .precision(1e-3)
             .decompose(500)
             .unwrap();

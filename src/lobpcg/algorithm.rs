@@ -428,8 +428,8 @@ pub fn lobpcg<A: NdFloat + Sum, F: Fn(ArrayView2<A>) -> Array2<A>, G: Fn(ArrayVi
     // retrieve best result and convert norm into `A`
     let (vals, vecs, rnorm) = best_result.unwrap();
     let res = Lobpcg {
-        evals: vals,
-        evecs: vecs,
+        eigvals: vals,
+        eigvecs: vecs,
         rnorm,
     };
 
@@ -543,7 +543,7 @@ mod tests {
 
         let result = lobpcg(|y| a.dot(&y), x, |_| {}, None, 1e-6, n * 3, order);
         match result {
-            Ok(Lobpcg { evals, rnorm, .. }) | Err((_, Some(Lobpcg { evals, rnorm, .. }))) => {
+            Ok(Lobpcg { eigvals, rnorm, .. }) | Err((_, Some(Lobpcg { eigvals, rnorm, .. }))) => {
                 // check convergence
                 for (i, norm) in rnorm.into_iter().enumerate() {
                     if norm > 1e-5 {
@@ -557,7 +557,7 @@ mod tests {
                 if ground_truth_eigvals.len() == num {
                     assert_abs_diff_eq!(
                         &Array1::from(ground_truth_eigvals.to_vec()),
-                        &evals,
+                        &eigvals,
                         epsilon = num as f64 * 5e-5,
                     )
                 }
@@ -618,15 +618,15 @@ mod tests {
         );
         match result {
             Ok(Lobpcg {
-                evals,
-                evecs,
+                eigvals,
+                eigvecs,
                 rnorm,
             })
             | Err((
                 _,
                 Some(Lobpcg {
-                    evals,
-                    evecs,
+                    eigvals,
+                    eigvecs,
                     rnorm,
                 }),
             )) => {
@@ -640,9 +640,9 @@ mod tests {
                 }
 
                 // should be the third eigenvalue
-                assert_abs_diff_eq!(&evals, &Array1::from(vec![3.0]), epsilon = 1e-6);
+                assert_abs_diff_eq!(&eigvals, &Array1::from(vec![3.0]), epsilon = 1e-6);
                 assert_abs_diff_eq!(
-                    &evecs.column(0).mapv(|x| x.abs()),
+                    &eigvecs.column(0).mapv(|x| x.abs()),
                     &arr1(&[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
                     epsilon = 1e-5,
                 );

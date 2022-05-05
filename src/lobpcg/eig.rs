@@ -3,16 +3,18 @@
 use super::random;
 use crate::{
     lobpcg::{lobpcg, Lobpcg, LobpcgResult},
-    LinalgError, Order, Result,
+    Order, Result,
 };
 
 use ndarray::prelude::*;
 use ndarray::{stack, NdFloat};
 use num_traits::NumCast;
+use rand::Rng;
 use std::iter::Sum;
 
-use rand::{Rng, SeedableRng};
-use rand_xoshiro::Xoshiro256Plus;
+#[cfg(feature = "rand_xoshiro")]
+use rand_xoshiro::{rand_core::SeedableRng, Xoshiro256Plus};
+//#[cfg(feature="rand_xoshiro")]
 
 #[derive(Debug, Clone)]
 /// Truncated eigenproblem solver
@@ -31,7 +33,7 @@ use rand_xoshiro::Xoshiro256Plus;
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
 ///
-/// let mut eig = TruncatedEig::new(a, Order::Largest)
+/// let mut eig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
 ///    .precision(1e-5)
 ///    .maxiter(500);
 ///
@@ -47,14 +49,19 @@ pub struct TruncatedEig<A: NdFloat, R: Rng> {
     rng: R,
 }
 
+#[cfg(feature = "rand_xoshiro")]
 impl<A: NdFloat + Sum> TruncatedEig<A, Xoshiro256Plus> {
     /// Create a new truncated eigenproblem solver
     ///
     /// # Properties
     /// * `problem`: problem matrix
     /// * `order`: ordering of the eigenvalues with [Order](crate::Order)
-    pub fn new(problem: Array2<A>, order: Order) -> TruncatedEig<A, Xoshiro256Plus> {
-        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(42))
+    pub fn new_from_seed(
+        problem: Array2<A>,
+        order: Order,
+        seed: u64,
+    ) -> TruncatedEig<A, Xoshiro256Plus> {
+        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(seed))
     }
 }
 
@@ -138,13 +145,22 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let mut eig = TruncatedEig::new(a, Order::Largest)
+    /// let mut eig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
     /// let res = eig.decompose(3);
     /// ```
     pub fn decompose(&mut self, num: usize) -> LobpcgResult<A> {
+        if num == 0 {
+            // return empty solution if requested eigenvalue number is zero
+            return Ok(Lobpcg {
+                eigvals: Array1::zeros(0),
+                eigvecs: Array2::zeros((0, 0)),
+                rnorm: Vec::new(),
+            });
+        }
+
         let x: Array2<f64> = random((self.problem.len_of(Axis(0)), num), &mut self.rng);
         let x = x.mapv(|x| NumCast::from(x).unwrap());
 
@@ -205,7 +221,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
 ///
-/// let teig = TruncatedEig::new(a, Order::Largest)
+/// let teig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
 ///     .precision(1e-5)
 ///     .maxiter(500);
 ///
@@ -224,11 +240,7 @@ pub struct TruncatedEigIterator<A: NdFloat, R: Rng> {
 impl<A: NdFloat + Sum, R: Rng> TruncatedEigIterator<A, R> {
     pub fn new(obj: TruncatedEig<A, R>, step_size: usize) -> Result<TruncatedEigIterator<A, R>> {
         if step_size < 1 {
-            return Err(LinalgError::InvalidHyperparam {
-                name: "step size".into(),
-                constrain: "> 0".into(),
-                value: step_size.to_string(),
-            });
+            panic!("Step size should be larger than zero");
         }
 
         Ok(TruncatedEigIterator {
@@ -252,15 +264,15 @@ impl<A: NdFloat + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
 
         match res {
             Ok(Lobpcg {
-                evals,
-                evecs,
+                eigvals,
+                eigvecs,
                 rnorm,
             })
             | Err((
                 _,
                 Some(Lobpcg {
-                    evals,
-                    evecs,
+                    eigvals,
+                    eigvecs,
                     rnorm,
                 }),
             )) => {
@@ -276,18 +288,18 @@ impl<A: NdFloat + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
                     let eigvecs_arr: Vec<_> = constraints
                         .columns()
                         .into_iter()
-                        .chain(evecs.columns().into_iter())
+                        .chain(eigvecs.columns().into_iter())
                         .collect();
 
                     stack(Axis(1), &eigvecs_arr).unwrap()
                 } else {
-                    evecs.clone()
+                    eigvecs.clone()
                 };
 
                 self.eig.constraints = Some(new_constraints);
                 self.remaining -= step_size;
 
-                Some((evals, evecs))
+                Some((eigvals, eigvecs))
             }
             Err((_, _)) => None,
         }
@@ -308,7 +320,7 @@ mod tests {
         ]);
         let a = Array2::from_diag(&diag);
 
-        let teig = TruncatedEig::new(a, Order::Largest)
+        let teig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
             .precision(1e-5)
             .maxiter(500);
 
