@@ -17,6 +17,8 @@ pub mod eigh;
 mod givens;
 mod householder;
 mod index;
+#[cfg(feature = "iterative")]
+pub mod lobpcg;
 pub mod norm;
 pub mod qr;
 pub mod reflection;
@@ -65,4 +67,11 @@ pub(crate) fn check_square<S: RawData>(arr: &ArrayBase<S, Ix2>) -> Result<usize>
     } else {
         Ok(n)
     }
+}
+
+/// Find largest or smallest eigenvalues
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Order {
+    Largest,
+    Smallest,
 }
