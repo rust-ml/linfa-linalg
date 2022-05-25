@@ -2,10 +2,11 @@ use approx::assert_abs_diff_eq;
 use ndarray::prelude::*;
 use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use proptest::prelude::*;
-
-use ndarray_linalg_rs::lobpcg::*;
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256Plus;
+
+use ndarray_linalg_rs::eigh::*;
+use ndarray_linalg_rs::lobpcg::*;
 
 mod common;
 
@@ -62,4 +63,45 @@ fn test_marchenko_pastur() {
 
         assert_abs_diff_eq!(mp_law, empirical, epsilon = 0.05);
     }
+}
+
+fn run_lobpcg_eig_test(arr: Array2<f64>, num: usize, ordering: Order) {
+    let (eigvals, _) = arr.eigh().unwrap().sort_eig(ordering == Order::Largest);
+    let res = TruncatedEig::new_with_rng(arr.clone(), ordering, Xoshiro256Plus::seed_from_u64(42))
+        .precision(1e-3)
+        .decompose(num)
+        .unwrap_or_else(|e| e.1.unwrap());
+
+    assert_abs_diff_eq!(eigvals.slice(s![..num]), res.eigvals, epsilon = 1e-5);
+    common::check_eigh(&arr, &res.eigvals, &res.eigvecs);
+}
+
+fn generate_order() -> impl Strategy<Value = Order> {
+    prop_oneof![Just(Order::Largest), Just(Order::Smallest)]
+}
+
+prop_compose! {
+    pub fn hpd_arr_num()(arr in common::hpd_arr())
+        (num in (1..arr.ncols()), arr in Just(arr)) -> (Array2<f64>, usize) {
+        (arr, num)
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1000))]
+    #[test]
+    fn lobpcg_eig_test((arr, num) in hpd_arr_num(), ordering in generate_order()) {
+        run_lobpcg_eig_test(arr, num, ordering);
+    }
+}
+
+#[test]
+fn problematic_eig_matrix() {
+    let arr = array![
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 7854.796948298437, 2495.5155877621937],
+        [0.0, 0.0, 2495.5155877621937, 5995.696530257453]
+    ];
+    run_lobpcg_eig_test(arr, 3, Order::Largest);
 }

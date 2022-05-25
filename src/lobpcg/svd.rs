@@ -268,8 +268,7 @@ mod tests {
     use super::TruncatedSvd;
 
     use approx::assert_abs_diff_eq;
-    use ndarray::{arr1, arr2, s, Array1, Array2, NdFloat};
-    use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
+    use ndarray::{arr1, arr2, Array2, NdFloat};
     use rand::distributions::{Distribution, Standard};
     use rand::SeedableRng;
     use rand_xoshiro::Xoshiro256Plus;
