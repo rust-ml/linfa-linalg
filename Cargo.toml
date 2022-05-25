@@ -14,7 +14,6 @@ ndarray = { version = "0.15", features = ["approx"] }
 num-traits = "0.2.0"
 thiserror = "1"
 rand = { version = "0.8", optional=true }
-rand_xoshiro = { version = "0.6", optional=true }
 
 [dev-dependencies]
 approx = "0.4"

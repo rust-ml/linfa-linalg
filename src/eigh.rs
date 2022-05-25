@@ -3,7 +3,8 @@
 use ndarray::{s, Array1, Array2, ArrayBase, Data, DataMut, Ix2, NdFloat};
 
 use crate::{
-    check_square, givens::GivensRotation, index::*, tridiagonal::SymmetricTridiagonal, Result,
+    check_square, givens::GivensRotation, index::*, tridiagonal::SymmetricTridiagonal, Order,
+    Result,
 };
 
 fn symmetric_eig<A: NdFloat, S: DataMut<Elem = A>>(
@@ -272,29 +273,28 @@ impl<A: NdFloat, S: Data<Elem = A>> EigValsh for ArrayBase<S, Ix2> {
 ///
 /// Will panic if shape or layout of inputs differ from eigen output, or if input contains NaN.
 pub trait EigSort: Sized {
-    fn sort_eig(self, descending: bool) -> Self;
+    fn sort_eig(self, order: Order) -> Self;
 
     /// Sort eigendecomposition by the eigenvalues in ascending order
     fn sort_eig_asc(self) -> Self {
-        self.sort_eig(false)
+        self.sort_eig(Order::Smallest)
     }
 
     /// Sort eigendecomposition by the eigenvalues in descending order
     fn sort_eig_desc(self) -> Self {
-        self.sort_eig(true)
+        self.sort_eig(Order::Largest)
     }
 }
 
 /// Implementation on output of `EigValsh` traits
 impl<A: NdFloat> EigSort for Array1<A> {
-    fn sort_eig(mut self, descending: bool) -> Self {
+    fn sort_eig(mut self, order: Order) -> Self {
         // Panics on non-standard layouts, which is fine because our eigenvals have standard layout
         let slice = self.as_slice_mut().unwrap();
         // Panic only happens with NaN values
-        if descending {
-            slice.sort_by(|a, b| b.partial_cmp(a).unwrap());
-        } else {
-            slice.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        match order {
+            Order::Largest => slice.sort_by(|a, b| b.partial_cmp(a).unwrap()),
+            Order::Smallest => slice.sort_by(|a, b| a.partial_cmp(b).unwrap()),
         }
         self
     }
@@ -302,14 +302,13 @@ impl<A: NdFloat> EigSort for Array1<A> {
 
 /// Implementation on output of `Eigh` traits
 impl<A: NdFloat> EigSort for (Array1<A>, Array2<A>) {
-    fn sort_eig(self, descending: bool) -> Self {
+    fn sort_eig(self, order: Order) -> Self {
         let (mut vals, vecs) = self;
         let mut value_idx: Vec<_> = vals.iter().copied().enumerate().collect();
         // Panic only happens with NaN values
-        if descending {
-            value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        } else {
-            value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        match order {
+            Order::Largest => value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()),
+            Order::Smallest => value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap()),
         }
 
         let mut out = Array2::zeros(vecs.dim());

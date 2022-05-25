@@ -8,7 +8,7 @@ use ndarray::{s, Array1, Array2, ArrayBase, Axis, Data, DataMut, Ix2, NdFloat};
 
 use crate::{
     bidiagonal::Bidiagonal, eigh::wilkinson_shift, givens::GivensRotation, index::*, LinalgError,
-    Result,
+    Order, Result,
 };
 
 fn svd<A: NdFloat, S: DataMut<Elem = A>>(
@@ -482,29 +482,28 @@ impl<A: NdFloat, S: Data<Elem = A>> SVD for ArrayBase<S, Ix2> {
 ///
 /// Will panic if shape of inputs differs from shape of SVD output, or if input contains NaN.
 pub trait SvdSort: Sized {
-    fn sort_svd(self, descending: bool) -> Self;
+    fn sort_svd(self, order: Order) -> Self;
 
     /// Sort SVD decomposition by the singular values in ascending order
     fn sort_svd_asc(self) -> Self {
-        self.sort_svd(false)
+        self.sort_svd(Order::Smallest)
     }
 
     /// Sort SVD decomposition by the singular values in descending order
     fn sort_svd_desc(self) -> Self {
-        self.sort_svd(true)
+        self.sort_svd(Order::Largest)
     }
 }
 
 /// Implemented on the output of the `SVD` traits
 impl<A: NdFloat> SvdSort for (Option<Array2<A>>, Array1<A>, Option<Array2<A>>) {
-    fn sort_svd(self, descending: bool) -> Self {
+    fn sort_svd(self, order: Order) -> Self {
         let (u, mut s, vt) = self;
         let mut value_idx: Vec<_> = s.iter().copied().enumerate().collect();
         // Panic only happens with NaN values
-        if descending {
-            value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        } else {
-            value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        match order {
+            Order::Largest => value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()),
+            Order::Smallest => value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap()),
         }
 
         let apply_ordering = |arr: &Array2<A>, ax, values_idx: &Vec<_>| {

@@ -70,6 +70,8 @@ pub(crate) fn check_square<S: RawData>(arr: &ArrayBase<S, Ix2>) -> Result<usize>
 }
 
 /// Find largest or smallest eigenvalues
+///
+/// Corresponds to descending and ascending order
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Order {
     Largest,

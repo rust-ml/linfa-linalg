@@ -11,9 +11,6 @@ use std::iter::Sum;
 
 use rand::Rng;
 
-#[cfg(feature = "rand_xoshiro")]
-use rand_xoshiro::{rand_core::SeedableRng, Xoshiro256Plus};
-
 /// The result of a eigenvalue decomposition, not yet transformed into singular values/vectors
 ///
 /// Provides methods for either calculating just the singular values with reduced cost or the
@@ -115,23 +112,6 @@ pub struct TruncatedSvd<A: NdFloat, R: Rng> {
     rng: R,
 }
 
-#[cfg(feature = "rand_xoshiro")]
-impl<A: NdFloat + Sum> TruncatedSvd<A, Xoshiro256Plus> {
-    /// Create a new truncated SVD problem
-    ///
-    /// # Parameters
-    ///  * `problem`: rectangular matrix which is decomposed
-    ///  * `order`: whether to return large or small (close to zero) singular values
-    ///  * `seed`: seed of the random number generator
-    pub fn new_from_seed(
-        problem: Array2<A>,
-        order: Order,
-        seed: u64,
-    ) -> TruncatedSvd<A, Xoshiro256Plus> {
-        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(seed))
-    }
-}
-
 impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// Create a new truncated SVD problem
     ///
@@ -183,11 +163,13 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// ```rust
     /// use ndarray::{arr1, Array2};
     /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedSvd};
+    /// use rand::SeedableRng;
+    /// use rand_xoshiro::Xoshiro256Plus;
     ///
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let eig = TruncatedSvd::new_from_seed(a, Order::Largest, 42)
+    /// let eig = TruncatedSvd::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
@@ -280,14 +262,13 @@ impl MagnitudeCorrection for f64 {
     }
 }
 
-#[cfg(all(test, feature = "rand_xoshiro"))]
+#[cfg(test)]
 mod tests {
     use super::Order;
     use super::TruncatedSvd;
 
     use approx::assert_abs_diff_eq;
-    use ndarray::{arr1, arr2, s, Array1, Array2, NdFloat};
-    use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
+    use ndarray::{arr1, arr2, Array2, NdFloat};
     use rand::distributions::{Distribution, Standard};
     use rand::SeedableRng;
     use rand_xoshiro::Xoshiro256Plus;
@@ -306,7 +287,7 @@ mod tests {
     fn test_truncated_svd() {
         let a = arr2(&[[3., 2., 2.], [2., 3., -2.]]);
 
-        let res = TruncatedSvd::new_from_seed(a, Order::Largest, 42)
+        let res = TruncatedSvd::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
             .precision(1e-5)
             .maxiter(10)
             .decompose(2)
@@ -321,70 +302,19 @@ mod tests {
     fn test_truncated_svd_random() {
         let a: Array2<f64> = random((50, 10));
 
-        let res = TruncatedSvd::new_from_seed(a.clone(), Order::Largest, 42)
-            .precision(1e-5)
-            .maxiter(10)
-            .decompose(10)
-            .unwrap();
+        let res = TruncatedSvd::new_with_rng(
+            a.clone(),
+            Order::Largest,
+            Xoshiro256Plus::seed_from_u64(42),
+        )
+        .precision(1e-5)
+        .maxiter(10)
+        .decompose(10)
+        .unwrap();
 
         let (u, sigma, v_t) = res.values_vectors();
         let reconstructed = u.dot(&Array2::from_diag(&sigma).dot(&v_t));
 
         assert_abs_diff_eq!(&a, &reconstructed, epsilon = 1e-5);
-    }
-
-    /// Eigenvalue structure in high dimensions
-    ///
-    /// This test checks that the eigenvalues are following the Marchensko-Pastur law. The data is
-    /// standard uniformly distributed (i.e. E(x) = 0, E^2(x) = 1) and we have twice the amount of
-    /// data when compared to features. The probability density of the eigenvalues should then follow
-    /// a special densitiy function, described by the Marchenko-Pastur law.
-    ///
-    /// See also https://en.wikipedia.org/wiki/Marchenko%E2%80%93Pastur_distribution
-    #[test]
-    fn test_marchenko_pastur() {
-        // create random number generator
-        let mut rng = Xoshiro256Plus::seed_from_u64(3);
-
-        // generate normal distribution random data with N >> p
-        let data = Array2::random_using((1000, 500), StandardNormal, &mut rng) / 1000f64.sqrt();
-
-        let res = TruncatedSvd::new_from_seed(data, Order::Largest, 42)
-            .precision(1e-3)
-            .decompose(500)
-            .unwrap();
-
-        let sv = res.values().mapv(|x: f64| x * x);
-
-        // we have created a random spectrum and can apply the Marchenko-Pastur law
-        // with variance 1 and p/n = 0.5
-        let (a, b) = (
-            1. * (1. - 0.5f64.sqrt()).powf(2.0),
-            1. * (1. + 0.5f64.sqrt()).powf(2.0),
-        );
-
-        // check that the spectrum has correct boundaries
-        assert_abs_diff_eq!(b, sv[0], epsilon = 0.1);
-        assert_abs_diff_eq!(a, sv[sv.len() - 1], epsilon = 0.1);
-
-        // estimate density empirical and compare with Marchenko-Pastur law
-        let mut i = 0;
-        'outer: for th in Array1::linspace(0.1f64, 2.8, 28).slice(s![..;-1]) {
-            let mut count = 0;
-            while sv[i] >= *th {
-                count += 1;
-                i += 1;
-
-                if i == sv.len() {
-                    break 'outer;
-                }
-            }
-
-            let x = th + 0.05;
-            let mp_law = ((b - x) * (x - a)).sqrt() / std::f64::consts::PI / x;
-            let empirical = count as f64 / 500. / ((2.8 - 0.1) / 28.);
-
-            assert_abs_diff_eq!(mp_law, empirical, epsilon = 0.05);
-        }
     }
 }

@@ -31,25 +31,16 @@ fn sorted_eig<A: NdFloat>(
     size: usize,
     order: Order,
 ) -> Result<(Array1<A>, Array2<A>)> {
-    let n = a.len_of(Axis(0));
-
     let res = match b {
         Some(b) => generalized_eig(a, b)?,
         _ => a.eigh_into()?,
     };
 
     // sort and ensure that signs are deterministic
-    let (vals, vecs) = res.sort_eig(false);
+    let (vals, vecs) = res.sort_eig(order);
     let s = vecs.row(0).mapv(|x| x.signum());
     let vecs = vecs * s;
-
-    Ok(match order {
-        Order::Largest => (
-            vals.slice_move(s![n-size..; -1]),
-            vecs.slice_move(s![.., n-size..; -1]),
-        ),
-        Order::Smallest => (vals.slice_move(s![..size]), vecs.slice_move(s![.., ..size])),
-    })
+    Ok((vals.slice_move(s![..size]), vecs.slice_move(s![.., ..size])))
 }
 
 /// Masks a matrix with the given `matrix`
