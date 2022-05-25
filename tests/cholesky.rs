@@ -2,7 +2,7 @@ use approx::assert_abs_diff_eq;
 use ndarray::prelude::*;
 use proptest::prelude::*;
 
-use ndarray_linalg_rs::{cholesky::*, triangular::*};
+use linfa_linalg::{cholesky::*, triangular::*};
 
 mod common;
 

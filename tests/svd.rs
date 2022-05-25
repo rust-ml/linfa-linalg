@@ -2,7 +2,7 @@ use approx::assert_abs_diff_eq;
 use ndarray::prelude::*;
 use proptest::prelude::*;
 
-use ndarray_linalg_rs::svd::*;
+use linfa_linalg::svd::*;
 
 mod common;
 
@@ -61,7 +61,7 @@ fn run_svd_test(arr: Array2<f64>) {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
-    fn bidiagonal_test(arr in common::rect_arr()) {
+    fn svd_test(arr in common::rect_arr()) {
         run_svd_test(arr);
     }
 }
