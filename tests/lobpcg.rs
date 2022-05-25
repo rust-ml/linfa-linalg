@@ -7,6 +7,7 @@ use rand_xoshiro::Xoshiro256Plus;
 
 use ndarray_linalg_rs::eigh::*;
 use ndarray_linalg_rs::lobpcg::*;
+use ndarray_linalg_rs::svd::*;
 
 mod common;
 
@@ -104,4 +105,84 @@ fn problematic_eig_matrix() {
         [0.0, 0.0, 2495.5155877621937, 5995.696530257453]
     ];
     run_lobpcg_eig_test(arr, 3, Order::Largest);
+}
+
+fn run_lobpcg_svd_test(arr: Array2<f64>, ordering: Order) {
+    let (_, s, _) = arr
+        .svd(false, false)
+        .unwrap()
+        .sort_svd(ordering == Order::Largest);
+    let (u, ts, vt) =
+        TruncatedSvd::new_with_rng(arr.clone(), ordering, Xoshiro256Plus::seed_from_u64(42))
+            .precision(1e-3)
+            .maxiter(10)
+            .decompose(arr.ncols())
+            .unwrap()
+            .values_vectors();
+
+    assert_abs_diff_eq!(s, ts, epsilon = 1e-5);
+    assert_abs_diff_eq!(u.dot(&Array2::from_diag(&ts)).dot(&vt), arr, epsilon = 1e-5);
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+    #[test]
+    fn lobpcg_svd_test(arr in common::hpd_arr(), ordering in generate_order()) {
+        run_lobpcg_svd_test(arr, ordering);
+    }
+}
+
+#[test]
+fn problematic_svd_matrix() {
+    let arr = array![
+        [
+            18703.111084031745,
+            5398.592802934647,
+            -2798.4524863262,
+            3142.0598040221316,
+            10654.718971270437,
+            2928.7057369452755
+        ],
+        [
+            5398.592802934647,
+            35574.82803149514,
+            -29613.112978401838,
+            -12632.782177317926,
+            -16546.07166801079,
+            -13607.176833471722
+        ],
+        [
+            -2798.4524863262,
+            -29613.112978401838,
+            29022.408309489085,
+            8718.392706824303,
+            12376.7396224986,
+            17995.47911319261
+        ],
+        [
+            3142.0598040221316,
+            -12632.782177317926,
+            8718.392706824303,
+            22884.5878990548,
+            -598.390397885349,
+            -8629.726579767677
+        ],
+        [
+            10654.718971270437,
+            -16546.07166801079,
+            12376.7396224986,
+            -598.390397885349,
+            27757.334483403938,
+            15535.051898142627
+        ],
+        [
+            2928.7057369452755,
+            -13607.176833471722,
+            17995.47911319261,
+            -8629.726579767677,
+            15535.051898142627,
+            31748.677025662313
+        ]
+    ];
+    run_lobpcg_svd_test(arr, Order::Largest);
 }
