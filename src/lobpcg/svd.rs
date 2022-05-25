@@ -11,9 +11,6 @@ use std::iter::Sum;
 
 use rand::Rng;
 
-#[cfg(feature = "rand_xoshiro")]
-use rand_xoshiro::{rand_core::SeedableRng, Xoshiro256Plus};
-
 /// The result of a eigenvalue decomposition, not yet transformed into singular values/vectors
 ///
 /// Provides methods for either calculating just the singular values with reduced cost or the
@@ -115,23 +112,6 @@ pub struct TruncatedSvd<A: NdFloat, R: Rng> {
     rng: R,
 }
 
-#[cfg(feature = "rand_xoshiro")]
-impl<A: NdFloat + Sum> TruncatedSvd<A, Xoshiro256Plus> {
-    /// Create a new truncated SVD problem
-    ///
-    /// # Parameters
-    ///  * `problem`: rectangular matrix which is decomposed
-    ///  * `order`: whether to return large or small (close to zero) singular values
-    ///  * `seed`: seed of the random number generator
-    pub fn new_from_seed(
-        problem: Array2<A>,
-        order: Order,
-        seed: u64,
-    ) -> TruncatedSvd<A, Xoshiro256Plus> {
-        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(seed))
-    }
-}
-
 impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// Create a new truncated SVD problem
     ///
@@ -183,11 +163,13 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// ```rust
     /// use ndarray::{arr1, Array2};
     /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedSvd};
+    /// use rand::SeedableRng;
+    /// use rand_xoshiro::Xoshiro256Plus;
     ///
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let eig = TruncatedSvd::new_from_seed(a, Order::Largest, 42)
+    /// let eig = TruncatedSvd::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
@@ -280,7 +262,7 @@ impl MagnitudeCorrection for f64 {
     }
 }
 
-#[cfg(all(test, feature = "rand_xoshiro"))]
+#[cfg(test)]
 mod tests {
     use super::Order;
     use super::TruncatedSvd;
@@ -306,7 +288,7 @@ mod tests {
     fn test_truncated_svd() {
         let a = arr2(&[[3., 2., 2.], [2., 3., -2.]]);
 
-        let res = TruncatedSvd::new_from_seed(a, Order::Largest, 42)
+        let res = TruncatedSvd::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
             .precision(1e-5)
             .maxiter(10)
             .decompose(2)
@@ -321,11 +303,15 @@ mod tests {
     fn test_truncated_svd_random() {
         let a: Array2<f64> = random((50, 10));
 
-        let res = TruncatedSvd::new_from_seed(a.clone(), Order::Largest, 42)
-            .precision(1e-5)
-            .maxiter(10)
-            .decompose(10)
-            .unwrap();
+        let res = TruncatedSvd::new_with_rng(
+            a.clone(),
+            Order::Largest,
+            Xoshiro256Plus::seed_from_u64(42),
+        )
+        .precision(1e-5)
+        .maxiter(10)
+        .decompose(10)
+        .unwrap();
 
         let (u, sigma, v_t) = res.values_vectors();
         let reconstructed = u.dot(&Array2::from_diag(&sigma).dot(&v_t));
@@ -349,10 +335,11 @@ mod tests {
         // generate normal distribution random data with N >> p
         let data = Array2::random_using((1000, 500), StandardNormal, &mut rng) / 1000f64.sqrt();
 
-        let res = TruncatedSvd::new_from_seed(data, Order::Largest, 42)
-            .precision(1e-3)
-            .decompose(500)
-            .unwrap();
+        let res =
+            TruncatedSvd::new_with_rng(data, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
+                .precision(1e-3)
+                .decompose(500)
+                .unwrap();
 
         let sv = res.values().mapv(|x: f64| x * x);
 

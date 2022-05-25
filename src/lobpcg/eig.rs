@@ -12,10 +12,6 @@ use num_traits::NumCast;
 use rand::Rng;
 use std::iter::Sum;
 
-#[cfg(feature = "rand_xoshiro")]
-use rand_xoshiro::{rand_core::SeedableRng, Xoshiro256Plus};
-//#[cfg(feature="rand_xoshiro")]
-
 #[derive(Debug, Clone)]
 /// Truncated eigenproblem solver
 ///
@@ -29,11 +25,13 @@ use rand_xoshiro::{rand_core::SeedableRng, Xoshiro256Plus};
 /// ```rust
 /// use ndarray::{arr1, Array2};
 /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
+/// use rand::SeedableRng;
+/// use rand_xoshiro::Xoshiro256Plus;
 ///
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
 ///
-/// let mut eig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
+/// let mut eig = TruncatedEig::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
 ///    .precision(1e-5)
 ///    .maxiter(500);
 ///
@@ -47,22 +45,6 @@ pub struct TruncatedEig<A: NdFloat, R: Rng> {
     precision: f32,
     maxiter: usize,
     rng: R,
-}
-
-#[cfg(feature = "rand_xoshiro")]
-impl<A: NdFloat + Sum> TruncatedEig<A, Xoshiro256Plus> {
-    /// Create a new truncated eigenproblem solver
-    ///
-    /// # Properties
-    /// * `problem`: problem matrix
-    /// * `order`: ordering of the eigenvalues with [Order](crate::Order)
-    pub fn new_from_seed(
-        problem: Array2<A>,
-        order: Order,
-        seed: u64,
-    ) -> TruncatedEig<A, Xoshiro256Plus> {
-        Self::new_with_rng(problem, order, Xoshiro256Plus::seed_from_u64(seed))
-    }
 }
 
 impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
@@ -141,11 +123,13 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
     /// ```rust
     /// use ndarray::{arr1, Array2};
     /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
+    /// use rand::SeedableRng;
+    /// use rand_xoshiro::Xoshiro256Plus;
     ///
     /// let diag = arr1(&[1., 2., 3., 4., 5.]);
     /// let a = Array2::from_diag(&diag);
     ///
-    /// let mut eig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
+    /// let mut eig = TruncatedEig::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
     ///    .precision(1e-5)
     ///    .maxiter(500);
     ///
@@ -217,11 +201,13 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
 /// ```rust
 /// use ndarray::{arr1, Array2};
 /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
+/// use rand::SeedableRng;
+/// use rand_xoshiro::Xoshiro256Plus;
 ///
 /// let diag = arr1(&[1., 2., 3., 4., 5.]);
 /// let a = Array2::from_diag(&diag);
 ///
-/// let teig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
+/// let teig = TruncatedEig::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
 ///     .precision(1e-5)
 ///     .maxiter(500);
 ///
@@ -306,11 +292,13 @@ impl<A: NdFloat + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
     }
 }
 
-#[cfg(all(test, feature = "rand_xoshiro"))]
+#[cfg(test)]
 mod tests {
     use super::Order;
     use super::TruncatedEig;
     use ndarray::{arr1, Array2};
+    use rand::SeedableRng;
+    use rand_xoshiro::Xoshiro256Plus;
 
     #[test]
     fn test_truncated_eig() {
@@ -320,7 +308,7 @@ mod tests {
         ]);
         let a = Array2::from_diag(&diag);
 
-        let teig = TruncatedEig::new_from_seed(a, Order::Largest, 42)
+        let teig = TruncatedEig::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
             .precision(1e-5)
             .maxiter(500);
 
