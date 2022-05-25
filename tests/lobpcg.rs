@@ -67,7 +67,7 @@ fn test_marchenko_pastur() {
 }
 
 fn run_lobpcg_eig_test(arr: Array2<f64>, num: usize, ordering: Order) {
-    let (eigvals, _) = arr.eigh().unwrap().sort_eig(ordering == Order::Largest);
+    let (eigvals, _) = arr.eigh().unwrap().sort_eig(ordering);
     let res = TruncatedEig::new_with_rng(arr.clone(), ordering, Xoshiro256Plus::seed_from_u64(42))
         .precision(1e-3)
         .decompose(num)
@@ -108,10 +108,7 @@ fn problematic_eig_matrix() {
 }
 
 fn run_lobpcg_svd_test(arr: Array2<f64>, ordering: Order) {
-    let (_, s, _) = arr
-        .svd(false, false)
-        .unwrap()
-        .sort_svd(ordering == Order::Largest);
+    let (_, s, _) = arr.svd(false, false).unwrap().sort_svd(ordering);
     let (u, ts, vt) =
         TruncatedSvd::new_with_rng(arr.clone(), ordering, Xoshiro256Plus::seed_from_u64(42))
             .precision(1e-3)
