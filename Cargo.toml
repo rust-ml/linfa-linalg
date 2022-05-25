@@ -25,3 +25,8 @@ rand_xoshiro = { version = "0.6" }
 [features]
 default = ["iterative"]
 iterative = ["rand"]
+
+[[test]]
+name = "lobpcg"
+path = "tests/lobpcg.rs"
+required-features = ["iterative"]
