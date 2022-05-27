@@ -46,7 +46,7 @@ where
 /// This happens if the algorithm fails in an early stage, for example if the matrix `A` is not SPD
 pub type LobpcgResult<A> = std::result::Result<Lobpcg<A>, (LinalgError, Option<Lobpcg<A>>)>;
 pub struct Lobpcg<A> {
-    eigvals: Array1<A>,
-    eigvecs: Array2<A>,
-    rnorm: Vec<A>,
+    pub eigvals: Array1<A>,
+    pub eigvecs: Array2<A>,
+    pub rnorm: Vec<A>,
 }
