@@ -170,7 +170,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// let a = Array2::from_diag(&diag);
     ///
     /// let eig = TruncatedSvd::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
-    ///    .precision(1e-5)
+    ///    .precision(1e-4)
     ///    .maxiter(500);
     ///
     /// let res = eig.decompose(3);
