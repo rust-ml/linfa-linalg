@@ -1,5 +1,5 @@
 [package]
-name = "ndarray-linalg-rs"
+name = "linfa-linalg"
 version = "0.1.0"
 edition = "2018"
 authors = ["Yuhan Lin <yuhanliin@protonmail.com>"]
