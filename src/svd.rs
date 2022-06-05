@@ -7,8 +7,11 @@ use std::ops::MulAssign;
 use ndarray::{s, Array1, Array2, ArrayBase, Axis, Data, DataMut, Ix2, NdFloat};
 
 use crate::{
-    bidiagonal::Bidiagonal, eigh::wilkinson_shift, givens::GivensRotation, index::*, LinalgError,
-    Order, Result,
+    bidiagonal::Bidiagonal,
+    eigh::{cmp_floats, wilkinson_shift},
+    givens::GivensRotation,
+    index::*,
+    LinalgError, Order, Result,
 };
 
 fn svd<A: NdFloat, S: DataMut<Elem = A>>(
@@ -502,8 +505,8 @@ impl<A: NdFloat> SvdSort for (Option<Array2<A>>, Array1<A>, Option<Array2<A>>) {
         let mut value_idx: Vec<_> = s.iter().copied().enumerate().collect();
         // Panic only happens with NaN values
         match order {
-            Order::Largest => value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()),
-            Order::Smallest => value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap()),
+            Order::Largest => value_idx.sort_by(|a, b| cmp_floats(&b.1, &a.1)),
+            Order::Smallest => value_idx.sort_by(|a, b| cmp_floats(&a.1, &b.1)),
         }
 
         let apply_ordering = |arr: &Array2<A>, ax, values_idx: &Vec<_>| {

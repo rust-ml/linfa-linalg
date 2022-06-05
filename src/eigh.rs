@@ -293,8 +293,8 @@ impl<A: NdFloat> EigSort for Array1<A> {
         let slice = self.as_slice_mut().unwrap();
         // Panic only happens with NaN values
         match order {
-            Order::Largest => slice.sort_by(|a, b| b.partial_cmp(a).unwrap()),
-            Order::Smallest => slice.sort_by(|a, b| a.partial_cmp(b).unwrap()),
+            Order::Largest => slice.sort_by(|a, b| cmp_floats(b, a)),
+            Order::Smallest => slice.sort_by(|a, b| cmp_floats(a, b)),
         }
         self
     }
@@ -307,8 +307,8 @@ impl<A: NdFloat> EigSort for (Array1<A>, Array2<A>) {
         let mut value_idx: Vec<_> = vals.iter().copied().enumerate().collect();
         // Panic only happens with NaN values
         match order {
-            Order::Largest => value_idx.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()),
-            Order::Smallest => value_idx.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap()),
+            Order::Largest => value_idx.sort_by(|a, b| cmp_floats(&b.1, &a.1)),
+            Order::Smallest => value_idx.sort_by(|a, b| cmp_floats(&a.1, &b.1)),
         }
 
         let mut out = Array2::zeros(vecs.dim());
@@ -320,6 +320,11 @@ impl<A: NdFloat> EigSort for (Array1<A>, Array2<A>) {
             .for_each(|(si, (_, f))| *si = *f);
         (vals, out)
     }
+}
+
+#[inline]
+pub(crate) fn cmp_floats<A: NdFloat>(a: &A, b: &A) -> std::cmp::Ordering {
+    a.partial_cmp(b).expect("NaN values in array")
 }
 
 #[cfg(test)]
