@@ -4,8 +4,8 @@ name: Run Tests
 
 jobs:
   testing:
-    name: testing
-    runs-on: ubuntu-18.04
+    name: testing-${{ matrix.toolchain }}-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     if: github.event.pull_request.draft == false
     strategy:
       fail-fast: false
@@ -13,6 +13,9 @@ jobs:
         toolchain:
           - 1.54.0
           - stable
+        os:
+          - ubuntu-18.04
+          - windows-2019
 
     steps:
       - name: Checkout sources
@@ -24,6 +27,9 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
           override: true
+
+      - name: Log active toolchain
+        run: rustup show
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
