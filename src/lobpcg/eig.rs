@@ -2,6 +2,7 @@
 //!
 use super::random;
 use crate::{
+    eigh::{EigSort, Eigh},
     lobpcg::{lobpcg, Lobpcg, LobpcgResult},
     Order, Result,
 };
@@ -147,6 +148,26 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
 
         let x: Array2<f64> = random((self.problem.len_of(Axis(0)), num), &mut self.rng);
         let x = x.mapv(|x| NumCast::from(x).unwrap());
+
+        // use dense eigenproblem solver if more than 1/5 eigenvalues requested
+        if num * 5 > self.problem.nrows() {
+            let (eigvals, eigvecs) = self
+                .problem
+                .eigh()
+                .map_err(|e| (e, None))?
+                .sort_eig(self.order);
+
+            let (eigvals, eigvecs) = (
+                eigvals.slice_move(s![..num]),
+                eigvecs.slice_move(s![.., ..num]),
+            );
+
+            return Ok(Lobpcg {
+                eigvals,
+                eigvecs,
+                rnorm: Vec::new(),
+            });
+        }
 
         if let Some(ref preconditioner) = self.preconditioner {
             lobpcg(

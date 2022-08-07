@@ -2,6 +2,7 @@
 ///!
 ///! This module computes the k largest/smallest singular values/vectors for a dense matrix.
 use crate::{
+    eigh::{EigSort, Eigh},
     lobpcg::{lobpcg, random, Lobpcg},
     Order, Result,
 };
@@ -35,14 +36,14 @@ impl<A: NdFloat + 'static + MagnitudeCorrection> TruncatedSvdResult<A> {
             a.sort_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap().reverse());
 
             // calculate cut-off magnitude (borrowed from scipy)
-            let cutoff = A::epsilon() * // float precision
-                         A::correction() * // correction term (see trait below)
-                         *a[0].1; // max eigenvalue
+            //let cutoff = A::epsilon() * // float precision
+            //             A::correction() * // correction term (see trait below)
+            //             *a[0].1; // max eigenvalue
 
             // filter low singular values away
             let (values, indices): (Vec<A>, Vec<usize>) = a
                 .into_iter()
-                .filter(|(_, x)| *x > &cutoff)
+                //.filter(|(_, x)| *x > &cutoff)
                 .map(|(a, b)| (b.sqrt(), a))
                 .unzip();
 
@@ -188,6 +189,31 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
         }
 
         let (n, m) = (self.problem.nrows(), self.problem.ncols());
+        let ngm = n > m;
+
+        // use dense eigenproblem solver if more than 1/5 eigenvalues requested
+        if num * 5 > n.min(m) {
+            let problem = if ngm {
+                self.problem.t().dot(&self.problem)
+            } else {
+                self.problem.dot(&self.problem.t())
+            };
+
+            let (eigvals, eigvecs) = problem.eigh()?.sort_eig(self.order);
+
+            let (eigvals, eigvecs) = (
+                eigvals.slice_move(s![..num]),
+                eigvecs.slice_move(s![..num, ..]),
+            );
+
+            return Ok(TruncatedSvdResult {
+                eigvals,
+                eigvecs,
+                problem: self.problem,
+                order: self.order,
+                ngm,
+            });
+        }
 
         // generate initial matrix
         let x: Array2<f32> = random((usize::min(n, m), num), &mut self.rng);
@@ -234,7 +260,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
                 eigvals,
                 eigvecs,
                 order: self.order,
-                ngm: n > m,
+                ngm,
             }),
             Err((err, None)) => Err(err),
         }
