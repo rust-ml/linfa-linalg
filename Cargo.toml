@@ -1,12 +1,14 @@
 [package]
-name = "ndarray-linalg-rs"
+name = "linfa-linalg"
 version = "0.1.0"
 edition = "2018"
 authors = ["Yuhan Lin <yuhanliin@protonmail.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
+description = "Pure-Rust implementation of linear algebra routines for ndarray"
+repository = "https://github.com/rust-ml/linfa-linalg"
 
-keywords = ["ndarray", "matrix"]
+keywords = ["ndarray", "matrix", "linalg"]
 categories = ["algorithms", "mathematics", "science"]
 
 [dependencies]

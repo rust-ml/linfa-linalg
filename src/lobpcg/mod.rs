@@ -50,5 +50,5 @@ pub type LobpcgResult<A> = std::result::Result<Lobpcg<A>, (LinalgError, Option<L
 pub struct Lobpcg<A> {
     pub eigvals: Array1<A>,
     pub eigvecs: Array2<A>,
-    rnorm: Vec<A>,
+    pub rnorm: Vec<A>,
 }

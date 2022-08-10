@@ -163,7 +163,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     ///
     /// ```rust
     /// use ndarray::{arr1, Array2};
-    /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedSvd};
+    /// use linfa_linalg::{Order, lobpcg::TruncatedSvd};
     /// use rand::SeedableRng;
     /// use rand_xoshiro::Xoshiro256Plus;
     ///
@@ -171,7 +171,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedSvd<A, R> {
     /// let a = Array2::from_diag(&diag);
     ///
     /// let eig = TruncatedSvd::new_with_rng(a, Order::Largest, Xoshiro256Plus::seed_from_u64(42))
-    ///    .precision(1e-5)
+    ///    .precision(1e-4)
     ///    .maxiter(500);
     ///
     /// let res = eig.decompose(3);

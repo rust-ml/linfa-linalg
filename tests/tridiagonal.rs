@@ -3,7 +3,7 @@ use ndarray::Array2;
 use num_traits::Zero;
 use proptest::prelude::*;
 
-use ndarray_linalg_rs::tridiagonal::*;
+use linfa_linalg::tridiagonal::*;
 
 mod common;
 

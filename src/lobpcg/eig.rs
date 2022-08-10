@@ -25,7 +25,7 @@ use std::iter::Sum;
 ///
 /// ```rust
 /// use ndarray::{arr1, Array2};
-/// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
+/// use linfa_linalg::{Order, lobpcg::TruncatedEig};
 /// use rand::SeedableRng;
 /// use rand_xoshiro::Xoshiro256Plus;
 ///
@@ -123,7 +123,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
     ///
     /// ```rust
     /// use ndarray::{arr1, Array2};
-    /// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
+    /// use linfa_linalg::{Order, lobpcg::TruncatedEig};
     /// use rand::SeedableRng;
     /// use rand_xoshiro::Xoshiro256Plus;
     ///
@@ -221,7 +221,7 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
 ///
 /// ```rust
 /// use ndarray::{arr1, Array2};
-/// use ndarray_linalg_rs::{Order, lobpcg::TruncatedEig};
+/// use linfa_linalg::{Order, lobpcg::TruncatedEig};
 /// use rand::SeedableRng;
 /// use rand_xoshiro::Xoshiro256Plus;
 ///

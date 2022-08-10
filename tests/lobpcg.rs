@@ -5,9 +5,9 @@ use proptest::prelude::*;
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256Plus;
 
-use ndarray_linalg_rs::eigh::*;
-use ndarray_linalg_rs::lobpcg::*;
-use ndarray_linalg_rs::svd::*;
+use linfa_linalg::eigh::*;
+use linfa_linalg::lobpcg::*;
+use linfa_linalg::svd::*;
 
 mod common;
 

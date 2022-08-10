@@ -1,4 +1,4 @@
-# ndarray-linalg-rs
+# linfa-linalg
 
 Provides pure-Rust implementations of linear algebra routines for `ndarray` without depending on external LAPACK/BLAS libraries.
 
