@@ -36,14 +36,14 @@ impl<A: NdFloat + 'static + MagnitudeCorrection> TruncatedSvdResult<A> {
             a.sort_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap().reverse());
 
             // calculate cut-off magnitude (borrowed from scipy)
-            //let cutoff = A::epsilon() * // float precision
-            //             A::correction() * // correction term (see trait below)
-            //             *a[0].1; // max eigenvalue
+            let cutoff = A::epsilon() * // float precision
+                         A::correction() * // correction term (see trait below)
+                         *a[0].1; // max eigenvalue
 
             // filter low singular values away
             let (values, indices): (Vec<A>, Vec<usize>) = a
                 .into_iter()
-                //.filter(|(_, x)| *x > &cutoff)
+                .filter(|(_, x)| *x > &cutoff)
                 .map(|(a, b)| (b.sqrt(), a))
                 .unzip();
 
