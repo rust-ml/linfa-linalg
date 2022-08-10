@@ -107,11 +107,11 @@ pub fn system_of_arr(
     })
 }
 
-pub fn check_eigh(arr: &Array2<f64>, vals: &Array1<f64>, vecs: &Array2<f64>) {
+pub fn check_eigh(arr: &Array2<f64>, vals: &Array1<f64>, vecs: &Array2<f64>, eps: f64) {
     // Original array multiplied with eigenvec should equal eigenval times eigenvec
     for (i, v) in vecs.axis_iter(Axis(1)).enumerate() {
         let av = arr.dot(&v);
         let ev = v.mapv(|x| vals[i] * x);
-        assert_abs_diff_eq!(av, ev, epsilon = 1e-5);
+        assert_abs_diff_eq!(av, ev, epsilon = eps);
     }
 }
