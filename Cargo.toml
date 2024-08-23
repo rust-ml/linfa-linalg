@@ -7,6 +7,7 @@ license = "MIT/Apache-2.0"
 readme = "README.md"
 description = "Pure-Rust implementation of linear algebra routines for ndarray"
 repository = "https://github.com/rust-ml/linfa-linalg"
+rust-version = "1.64"
 
 keywords = ["ndarray", "matrix", "linalg"]
 categories = ["algorithms", "mathematics", "science"]

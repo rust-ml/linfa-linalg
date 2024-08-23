@@ -7,7 +7,7 @@
 //! ```
 //! where A is symmetric and (x, lambda) the solution. It has the following advantages:
 //! * matrix free: does not require storing the coefficient matrix explicitely and only evaluates
-//! matrix-vector products.
+//!   matrix-vector products.
 //! * factorization-free: does not require any matrix decomposition
 //! * linear-convergence: theoretically guaranteed and practically observed
 //!
