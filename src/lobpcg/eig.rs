@@ -274,7 +274,7 @@ impl<A: NdFloat + Sum, R: Rng> Iterator for TruncatedEigIterator<A, R> {
                     let eigvecs_arr: Vec<_> = constraints
                         .columns()
                         .into_iter()
-                        .chain(eigvecs.columns().into_iter())
+                        .chain(eigvecs.columns())
                         .collect();
 
                     stack(Axis(1), &eigvecs_arr).unwrap()

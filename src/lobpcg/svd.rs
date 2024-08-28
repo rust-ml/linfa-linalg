@@ -1,6 +1,6 @@
-///! Truncated singular value decomposition
-///!
-///! This module computes the k largest/smallest singular values/vectors for a dense matrix.
+//! Truncated singular value decomposition
+//!
+//! This module computes the k largest/smallest singular values/vectors for a dense matrix.
 use crate::{
     lobpcg::{lobpcg, random, Lobpcg},
     Order, Result,
