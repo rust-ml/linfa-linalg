@@ -14,8 +14,8 @@ jobs:
           - 1.65.0
           - stable
         os:
-          - ubuntu-18.04
-          - windows-2019
+          - ubuntu-latest
+          - windows-latest
 
     steps:
       - name: Checkout sources
