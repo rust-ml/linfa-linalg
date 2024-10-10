@@ -10,6 +10,7 @@
 //! linker errors if no BLAS backend is specified.
 
 #![allow(clippy::many_single_char_names)]
+#![allow(clippy::result_large_err)]
 
 pub mod bidiagonal;
 pub mod cholesky;

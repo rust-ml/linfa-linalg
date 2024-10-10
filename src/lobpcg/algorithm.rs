@@ -1,10 +1,10 @@
+//! Locally Optimal Block Preconditioned Conjugated
+//!
+//! This module implements the Locally Optimal Block Preconditioned Conjugated (LOBPCG) algorithm,
+//!  which can be used as a solver for large symmetric eigenproblems.
 use ndarray::concatenate;
 use ndarray::prelude::*;
 use num_traits::NumCast;
-///! Locally Optimal Block Preconditioned Conjugated
-///!
-///! This module implements the Locally Optimal Block Preconditioned Conjugated (LOBPCG) algorithm,
-///which can be used as a solver for large symmetric eigenproblems.
 use std::iter::Sum;
 
 use crate::{cholesky::*, eigh::*, norm::*, triangular::*};
@@ -100,15 +100,15 @@ fn orthonormalize<T: NdFloat>(v: Array2<T>) -> Result<(Array2<T>, Array2<T>)> {
 ///
 /// # Arguments
 /// * `a` - An operator defining the problem, usually a sparse (sometimes also dense) matrix
-/// multiplication. Also called the "stiffness matrix".
+///   multiplication. Also called the "stiffness matrix".
 /// * `x` - Initial approximation of the k eigenvectors. If `a` has shape=(n,n), then `x` should
-/// have shape=(n,k).
+///   have shape=(n,k).
 /// * `m` - Preconditioner to `a`, by default the identity matrix. Should approximate the inverse
-/// of `a`.
+///   of `a`.
 /// * `y` - Constraints of (n,size_y), iterations are performed in the orthogonal complement of the
-/// column-space of `y`. It must be full rank.
+///   column-space of `y`. It must be full rank.
 /// * `tol` - The tolerance values defines at which point the solver stops the optimization. The approximation
-/// of a eigenvalue stops when then l2-norm of the residual is below this threshold.
+///   of a eigenvalue stops when then l2-norm of the residual is below this threshold.
 /// * `maxiter` - The maximal number of iterations
 /// * `order` - Whether to solve for the largest or lowest eigenvalues
 ///
