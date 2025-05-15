@@ -131,8 +131,8 @@ pub fn lobpcg<A: NdFloat + Sum, F: Fn(ArrayView2<A>) -> Array2<A>, G: Fn(ArrayVi
     if size_x > n {
         return Err((
             LinalgError::NotThin {
-                rows: size_x,
-                cols: n,
+                rows: n,
+                cols: size_x,
             },
             None,
         ));
