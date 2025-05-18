@@ -6,18 +6,6 @@ use linfa_linalg::{cholesky::*, triangular::*};
 
 mod common;
 
-prop_compose! {
-    fn hpd_arr()
-        (arr in common::square_arr()) -> Array2<f64> {
-        let dim = arr.nrows();
-        let mut mul = arr.t().dot(&arr);
-        for i in 0..dim {
-            mul[(i, i)] += 1.0;
-        }
-        mul
-    }
-}
-
 fn run_cholesky_test(orig: Array2<f64>) {
     let chol = orig.cholesky().unwrap();
     assert_abs_diff_eq!(chol.dot(&chol.t()), orig, epsilon = 1e-7);
@@ -69,17 +57,17 @@ fn run_invc_test(a: Array2<f64>) {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
-    fn cholesky_test(arr in hpd_arr()) {
+    fn cholesky_test(arr in common::hpd_arr()) {
         run_cholesky_test(arr)
     }
 
     #[test]
-    fn solvec_test((a, x) in common::system_of_arr(hpd_arr())) {
+    fn solvec_test((a, x) in common::system_of_arr(common::hpd_arr())) {
         run_solvec_test(a, x)
     }
 
     #[test]
-    fn invc_test(arr in hpd_arr()) {
+    fn invc_test(arr in common::hpd_arr()) {
         run_invc_test(arr)
     }
 }

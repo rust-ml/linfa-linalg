@@ -6,15 +6,6 @@ use linfa_linalg::eigh::*;
 
 mod common;
 
-fn check_eigh(arr: &Array2<f64>, vals: &Array1<f64>, vecs: &Array2<f64>) {
-    // Original array multiplied with eigenvec should equal eigenval times eigenvec
-    for (i, v) in vecs.axis_iter(Axis(1)).enumerate() {
-        let av = arr.dot(&v);
-        let ev = v.mapv(|x| vals[i] * x);
-        assert_abs_diff_eq!(av, ev, epsilon = 1e-5);
-    }
-}
-
 fn run_eigh_test(arr: Array2<f64>) {
     let n = arr.nrows();
     let d = arr.eigh().unwrap();
@@ -23,7 +14,7 @@ fn run_eigh_test(arr: Array2<f64>) {
     // Eigenvecs should be orthogonal
     let s = vecs.t().dot(&vecs);
     assert_abs_diff_eq!(s, Array2::eye(n), epsilon = 1e-5);
-    check_eigh(&arr, &vals, &vecs);
+    common::check_eigh(&arr, &vals, &vecs, 1e-5);
 
     let (evals, evecs) = arr.clone().eigh_into().unwrap();
     assert_abs_diff_eq!(evals, vals);
@@ -33,12 +24,12 @@ fn run_eigh_test(arr: Array2<f64>) {
 
     // Check if ascending eigen is actually sorted and valid
     let (vals, vecs) = d.clone().sort_eig_asc();
-    check_eigh(&arr, &vals, &vecs);
+    common::check_eigh(&arr, &vals, &vecs, 1e-5);
     assert!(vals.windows(2).into_iter().all(|w| w[0] <= w[1]));
 
     // Check if descending eigen is actually sorted and valid
     let (vals, vecs) = d.sort_eig_desc();
-    check_eigh(&arr, &vals, &vecs);
+    common::check_eigh(&arr, &vals, &vecs, 1e-5);
     assert!(vals.windows(2).into_iter().all(|w| w[0] >= w[1]));
 }
 

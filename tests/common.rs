@@ -2,6 +2,7 @@
 
 use std::ops::RangeInclusive;
 
+use approx::assert_abs_diff_eq;
 use ndarray::prelude::*;
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
@@ -50,6 +51,18 @@ prop_compose! {
 }
 
 prop_compose! {
+    pub fn hpd_arr()
+        (arr in square_arr()) -> Array2<f64> {
+        let dim = arr.nrows();
+        let mut mul = arr.t().dot(&arr);
+        for i in 0..dim {
+            mul[(i, i)] += 1.0;
+        }
+        mul
+    }
+}
+
+prop_compose! {
     pub fn rect_arr()(rows in DIM_RANGE, cols in DIM_RANGE)
         (arr in matrix(rows, cols)) -> Array2<f64> {
         arr
@@ -92,4 +105,13 @@ pub fn system_of_arr(
             DIM_RANGE.prop_flat_map(move |col| matrix(rows, col)),
         )
     })
+}
+
+pub fn check_eigh(arr: &Array2<f64>, vals: &Array1<f64>, vecs: &Array2<f64>, eps: f64) {
+    // Original array multiplied with eigenvec should equal eigenval times eigenvec
+    for (i, v) in vecs.axis_iter(Axis(1)).enumerate() {
+        let av = arr.dot(&v);
+        let ev = v.mapv(|x| vals[i] * x);
+        assert_abs_diff_eq!(av, ev, epsilon = eps);
+    }
 }

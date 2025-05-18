@@ -45,6 +45,8 @@ where
 /// as it could be of value. If there is no result at all, then the second field is `None`.
 /// This happens if the algorithm fails in an early stage, for example if the matrix `A` is not SPD
 pub type LobpcgResult<A> = std::result::Result<Lobpcg<A>, (LinalgError, Option<Lobpcg<A>>)>;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Lobpcg<A> {
     pub eigvals: Array1<A>,
     pub eigvecs: Array2<A>,
