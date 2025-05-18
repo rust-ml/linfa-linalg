@@ -26,6 +26,7 @@ pub mod reflection;
 pub mod svd;
 pub mod triangular;
 pub mod tridiagonal;
+pub mod cholesky_update;
 
 use ndarray::{ArrayBase, Ix2, RawData, ShapeError};
 use thiserror::Error;
