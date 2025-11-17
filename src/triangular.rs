@@ -139,7 +139,7 @@ pub(crate) fn solve_triangular_system<A: NdFloat>(
     if uplo == UPLO::Upper {
         solve_triangular_system_common(a, b, |rows| (0..rows).rev(), |r, c| s![..r, c], diag_fn)
     } else {
-        solve_triangular_system_common(a, b, |rows| (0..rows), |r, c| s![r + 1.., c], diag_fn)
+        solve_triangular_system_common(a, b, |rows| 0..rows, |r, c| s![r + 1.., c], diag_fn)
     }
 }
 

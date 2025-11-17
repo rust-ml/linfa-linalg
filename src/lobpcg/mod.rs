@@ -18,7 +18,7 @@ mod eig;
 mod svd;
 
 use ndarray::prelude::*;
-use rand::distributions::Standard;
+use rand::distr::StandardUniform;
 use rand::prelude::*;
 
 pub use crate::{LinalgError, Order};
@@ -32,9 +32,9 @@ where
     A: NdFloat,
     D: Dimension,
     Sh: ShapeBuilder<Dim = D>,
-    Standard: Distribution<A>,
+    StandardUniform: Distribution<A>,
 {
-    ArrayBase::from_shape_fn(sh, |_| rng.gen::<A>())
+    ArrayBase::from_shape_fn(sh, |_| rng.random::<A>())
 }
 
 /// The result of the eigensolver

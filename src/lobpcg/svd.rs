@@ -270,7 +270,7 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use ndarray::{arr1, arr2, s, Array1, Array2, NdFloat};
     use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
-    use rand::distributions::{Distribution, Standard};
+    use rand::distr::{Distribution, StandardUniform};
     use rand::SeedableRng;
     use rand_xoshiro::Xoshiro256Plus;
 
@@ -278,7 +278,7 @@ mod tests {
     fn random<A>(sh: (usize, usize)) -> Array2<A>
     where
         A: NdFloat,
-        Standard: Distribution<A>,
+        StandardUniform: Distribution<A>,
     {
         let rng = Xoshiro256Plus::seed_from_u64(3);
         super::random(sh, rng)

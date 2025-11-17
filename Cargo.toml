@@ -7,23 +7,23 @@ license = "MIT/Apache-2.0"
 readme = "README.md"
 description = "Pure-Rust implementation of linear algebra routines for ndarray"
 repository = "https://github.com/rust-ml/linfa-linalg"
-rust-version = "1.65"
+rust-version = "1.82"
 
 keywords = ["ndarray", "matrix", "linalg"]
 categories = ["algorithms", "mathematics", "science"]
 
 [dependencies]
-ndarray = { version = "0.16", features = ["approx"] }
+ndarray = { version = "0.17", features = ["approx"] }
 num-traits = "0.2.0"
-thiserror = "1"
-rand = { version = "0.8", optional=true }
+thiserror = "2"
+rand = { version = "0.9", optional=true }
 
 [dev-dependencies]
 approx = "0.5"
 proptest = "1.0"
-proptest-derive = "0.5.0"
-ndarray-rand = "0.15"
-rand_xoshiro = { version = "0.6" }
+proptest-derive = "0.7.0"
+ndarray-rand = "0.16"
+rand_xoshiro = { version = "0.7" }
 
 [features]
 default = ["iterative"]

@@ -152,7 +152,10 @@ impl<A: NdFloat + Sum, R: Rng> TruncatedEig<A, R> {
             lobpcg(
                 |y| self.problem.dot(&y),
                 x,
-                |mut y| y.assign(&preconditioner.dot(&y)),
+                |mut y| {
+                    let tmp = preconditioner.dot(&y);
+                    y.assign(&tmp)
+                },
                 self.constraints.as_ref().map(|x| x.view()),
                 self.precision,
                 self.maxiter,
