@@ -66,6 +66,25 @@ proptest! {
     }
 }
 
+/// Rank-deficient matrices: products of `rows x rank` and `rank x cols` matrices with
+/// `rank < min(rows, cols)`, which have singular values that are zero up to rounding.
+fn rank_deficient_arr() -> impl Strategy<Value = Array2<f64>> {
+    (2..60usize, 2..12usize)
+        .prop_flat_map(|(rows, cols)| {
+            (1..rows.min(cols))
+                .prop_flat_map(move |rank| (common::matrix(rows, rank), common::matrix(rank, cols)))
+        })
+        .prop_map(|(a, b)| a.dot(&b))
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1000))]
+    #[test]
+    fn svd_test_rank_deficient(arr in rank_deficient_arr()) {
+        run_svd_test(arr);
+    }
+}
+
 #[test]
 fn svd_f32() {
     let (u, s, vt) = array![[3.0f32, 0.], [0., -2.]].svd(true, true).unwrap();
