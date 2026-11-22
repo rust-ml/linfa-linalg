@@ -539,7 +539,7 @@ mod tests {
                 for (i, norm) in rnorm.into_iter().enumerate() {
                     if norm > 1e-5 {
                         println!("==== Assertion Failed ====");
-                        println!("The {}th eigenvalue estimation did not converge!", i);
+                        println!("The {i}th eigenvalue estimation did not converge!");
                         panic!("Too large deviation of residual norm: {} > 0.01", norm);
                     }
                 }
@@ -625,7 +625,7 @@ mod tests {
                 for (i, norm) in rnorm.into_iter().enumerate() {
                     if norm > 0.01 {
                         println!("==== Assertion Failed ====");
-                        println!("The {}th eigenvalue estimation did not converge!", i);
+                        println!("The {i}th eigenvalue estimation did not converge!");
                         panic!("Too large deviation of residual norm: {} > 0.01", norm);
                     }
                 }
