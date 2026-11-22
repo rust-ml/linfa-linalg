@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Raise the minimum supported Rust version to 1.88: the current versions of the dependencies no
+  longer build with 1.65.
+
 ## [0.2.1] - 2025-05-14
 
 ### Changed
