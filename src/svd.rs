@@ -215,7 +215,7 @@ fn svd<A: NdFloat, S: DataMut<Elem = A>>(
         if val.is_sign_negative() {
             diag[i] = -val;
             if let Some(u) = &mut u {
-                u.column_mut(i).mul_assign(-A::zero());
+                u.column_mut(i).mul_assign(-A::one());
             }
         }
     }
@@ -398,8 +398,13 @@ fn compute_2x2_uptrig_svd<A: NdFloat>(
             v_t = Some(csv.clone());
         }
 
-        let cu = (m11 * csv.c() + m12 * csv.s()) / v1;
-        let su = (m22 * csv.s()) / v1;
+        // The first left singular vector is `B v_1 / v1`, with `v_1 = (c, s)` the first column of
+        // `V`. With `v1` close to zero (`B` nearly singular), `B v_1` would be a cancellation, so
+        // it is computed from the second singular pair instead: `u_2 = B v_2 / v2`, with
+        // `v_2 = (-s, c)`, and `u_1` is `u_2` rotated by -90 degrees. The same vector, with the
+        // same scale and sign, since `v1 v2 = m11 m22 = det B`.
+        let cu = (m22 * csv.c()) / v2;
+        let su = (m11 * csv.s() - m12 * csv.c()) / v2;
         let (csu, sgn_u) = GivensRotation::new(cu, su);
         v1 *= sgn_u;
         v2 *= sgn_u;
@@ -550,6 +555,24 @@ mod tests {
         assert_abs_diff_eq!(s, array![0.51371, 4.76824], epsilon = 1e-5);
         assert!(u.is_none());
         assert!(vt.is_none());
+    }
+
+    /// Rank-deficient matrices, with a singular value that is zero up to rounding: the 2x2
+    /// subproblems are then nearly singular, and their left singular vectors must not be computed
+    /// by dividing by the near-zero singular value.
+    #[test]
+    fn svd_reconstructs_rank_deficient() {
+        let b = array![[0.3, -1.2, 0.7], [1.1, 0.4, -0.9]];
+        for n in [50, 500] {
+            let a = Array2::from_shape_fn((n, 2), |(i, j)| {
+                ((i * 37 + j * 11) % 101) as f64 / 50.0 - 1.0
+            });
+            let m = a.dot(&b);
+            let (u, s, vt) = svd(m.clone(), true, true, 5. * f64::EPSILON).unwrap();
+            let (u, vt) = (u.unwrap(), vt.unwrap());
+            assert!(s.iter().copied().all(f64::is_sign_positive));
+            assert_abs_diff_eq!((u * &s).dot(&vt), m, epsilon = 1e-12);
+        }
     }
 
     fn test_svd_props(a: Array2<f64>, exp_s: Array1<f64>) {
